@@ -1,3 +1,7 @@
+// these two lines to override mongoDB ECONNREFUSED error
+const dns = require('node:dns/promises');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
@@ -5,6 +9,7 @@ const cors = require('cors');
 const connectDB = require('./config/db.js');
 const notFound = require('./middleware/notFound.js');
 const errorHandler = require('./middleware/errorMiddleware.js');
+const authRoutes = require('./routes/authRoutes.js');
 
 // load .env file content into process.env
 dotenv.config();
@@ -19,7 +24,9 @@ app.use(express.json());
 
 // routes
 app.use('/api/health', require('./routes/healthRoutes.js'));
+app.use('/api/auth', authRoutes);
 
+// error middleware
 app.use(notFound);
 app.use(errorHandler);
 
