@@ -1,5 +1,4 @@
 const User = require('../models/User');
-const user = require('../models/User');
 const generateToken = require('../utils/generateToken');
 
 // route   POST /api/auth/register      public access
@@ -13,7 +12,7 @@ const registerUser = async (req, res) => {
         }
 
         // check if user already exists
-        const userExists = await user.findOne({ email });
+        const userExists = await User.findOne({ email });
 
         if(userExists){
             return res.status(400).json({ message: 'User already exists' });
