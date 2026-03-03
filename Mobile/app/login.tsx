@@ -1,13 +1,31 @@
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
 import { useState } from "react";
 
+import { BASE_URL } from "@/constants/api";
+
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async () => {
-        Alert.alert("Login Pressed");
+        try{
+            const response = await fetch(`${BASE_URL}/api/auth/login`, {
+                method: "POST",
+                headers: { "content-type": "application/json", },
+                body: JSON.stringify({ email, password, }),
+            });
+
+            const data = await response.json();
+
+            if(!response.ok) {
+                throw new Error(data.message || "Login failed");
+            }
+
+            console.log("User logged in: ", data);
+        } catch (err: any) {
+            alert(err.message);
+        }
     };
 
     return (
