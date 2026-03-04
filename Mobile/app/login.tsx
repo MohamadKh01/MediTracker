@@ -1,5 +1,7 @@
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
 import { useState } from "react";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { BASE_URL } from "@/constants/api";
 
@@ -22,7 +24,17 @@ export default function Login() {
                 throw new Error(data.message || "Login failed");
             }
 
-            Alert.alert("User logged in: ", JSON.stringify(data, null, 2));
+            await AsyncStorage.setItem("userToken", data.token);
+            await AsyncStorage.setItem("userInfo", JSON.stringify(data));
+            console.log("Token saved");
+
+            if (data.role === "patient") {
+                router.replace("./patientDashboard");
+            }
+            else if (data.role === "caregiver") {
+                router.replace("./caregiverDashboard");
+            }
+
         } catch (err: any) {
             Alert.alert("Error: ", err.message);
         }

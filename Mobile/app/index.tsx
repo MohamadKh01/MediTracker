@@ -1,7 +1,29 @@
 import { Text, View, StyleSheet, Pressable } from "react-native";
 import { router } from "expo-router";
+import { useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Welcome() {
+
+  useEffect(() => {
+    const checkLogin = async () => {
+      const userInfo = await AsyncStorage.getItem("userInfo");
+
+      if(userInfo) {
+        const parsedUser = JSON.parse(userInfo);
+
+        if(parsedUser.role === "patient") {
+          router.replace("./patientDashboard");
+        }
+        else if(parsedUser.role === "caregiver") {
+          router.replace("./caregiverDashboard");
+        }
+      }
+    };
+
+    checkLogin();
+  }, []);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>MediTracker</Text>
