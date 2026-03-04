@@ -1,6 +1,7 @@
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
 import { RadioButton } from "react-native-paper";
-import { SetStateAction, useState } from "react";
+import { useState } from "react";
+import { BASE_URL } from "@/constants/api";
 
 export default function Register() {
     const [name, setName] = useState("");
@@ -11,12 +12,28 @@ export default function Register() {
     const [phone, setPhone] = useState("");
 
     const handleRegister = async () => {
-        Alert.alert("Register Pressed");
+        try {
+            const response = await fetch(`${BASE_URL}/api/auth/register`, {
+                method: "POST",
+                headers: { "content-type": "application/json", },
+                body: JSON.stringify({ name, email, password, role, phone }),
+            });
+
+            const data = await response.json();
+
+            if(!response.ok){
+                throw new Error(data.message || "Register failed");
+            }
+
+            Alert.alert("User Registered: ", JSON.stringify(data, null, 2));
+        } catch (err: any){
+            Alert.alert("Error: ", err.message);
+        }
     };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Login</Text>
+            <Text style={styles.title}>Register</Text>
 
             <Text>Name</Text>
             <TextInput 
@@ -30,6 +47,8 @@ export default function Register() {
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
             />
 
             <Text>Password</Text>
@@ -39,6 +58,7 @@ export default function Register() {
                     secureTextEntry={!showPassword}
                     value={password}
                     onChangeText={setPassword}
+                    autoCapitalize="none"
                 />
 
                 <Pressable onPress={() => setShowPassword(!showPassword)}>
@@ -50,8 +70,8 @@ export default function Register() {
 
             <Text>Role</Text>
             <RadioButton.Group value={role} onValueChange={(val: string) => setRole(val)}>
-                <RadioButton.Item label="Patient" value="patient" position="leading" />
-                <RadioButton.Item label="Caregiver" value="caregiver" position="leading" />
+                <RadioButton.Item label="Patient" value="patient" />
+                <RadioButton.Item label="Caregiver" value="caregiver" />
             </RadioButton.Group>
 
             <Text>Phone</Text>
@@ -71,7 +91,8 @@ export default function Register() {
 const styles = StyleSheet.create({
 container: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: 80,
     padding: 20,
   },
   title: {

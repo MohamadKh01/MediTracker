@@ -22,9 +22,9 @@ export default function Login() {
                 throw new Error(data.message || "Login failed");
             }
 
-            console.log("User logged in: ", data);
+            Alert.alert("User logged in: ", JSON.stringify(data, null, 2));
         } catch (err: any) {
-            alert(err.message);
+            Alert.alert("Error: ", err.message);
         }
     };
 
@@ -37,6 +37,8 @@ export default function Login() {
                 style={styles.input}
                 value={email}
                 onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
             />
 
             <Text>Password</Text>
@@ -46,6 +48,7 @@ export default function Login() {
                     secureTextEntry={!showPassword}
                     value={password}
                     onChangeText={setPassword}
+                    autoCapitalize="none"
                 />
 
                 <Pressable onPress={() => setShowPassword(!showPassword)}>
@@ -65,7 +68,8 @@ export default function Login() {
 const styles = StyleSheet.create({
 container: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingTop: 80,
     padding: 20,
   },
   title: {
