@@ -12,11 +12,15 @@ export default function Welcome() {
       if(userInfo) {
         const parsedUser = JSON.parse(userInfo);
 
+        if(router.canDismiss()){
+          router.dismissAll();
+        }
+          
         if(parsedUser.role === "patient") {
-          router.replace("./patientDashboard");
+          router.replace("/(patient)/dashboard");
         }
         else if(parsedUser.role === "caregiver") {
-          router.replace("./caregiverDashboard");
+          router.replace("/(caregiver)/dashboard");
         }
       }
     };
@@ -29,11 +33,11 @@ export default function Welcome() {
       <Text style={styles.title}>MediTracker</Text>
       <Text style={styles.subtitle}>Stay on Track. Stay Healthy</Text>
 
-      <Pressable style={styles.button} onPress={() => router.push("./login")}>
+      <Pressable style={styles.button} onPress={() => router.push("/(auth)/login")}>
         <Text style={styles.buttonText}>Login</Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={() => router.push("./register")}>
+      <Pressable style={styles.button} onPress={() => router.push("/(auth)/register")}>
         <Text style={styles.buttonText}>Register</Text>
       </Pressable>
     </View>

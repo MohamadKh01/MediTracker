@@ -1,5 +1,5 @@
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -9,6 +9,29 @@ export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+
+    useEffect(() => {
+    const checkLogin = async () => {
+      const userInfo = await AsyncStorage.getItem("userInfo");
+
+      if(userInfo) {
+        const parsedUser = JSON.parse(userInfo);
+
+        if(router.canDismiss()){
+          router.dismissAll();
+        }
+          
+        if(parsedUser.role === "patient") {
+          router.replace("/(patient)/dashboard");
+        }
+        else if(parsedUser.role === "caregiver") {
+          router.replace("/(caregiver)/dashboard");
+        }
+      }
+    };
+
+    checkLogin();
+  }, []);
 
     const handleLogin = async () => {
         try{
@@ -28,11 +51,15 @@ export default function Login() {
             await AsyncStorage.setItem("userInfo", JSON.stringify(data));
             console.log("Token saved");
 
+            if(router.canDismiss()){
+                router.dismissAll();
+            }
+
             if (data.role === "patient") {
-                router.replace("./patientDashboard");
+                router.replace("/(patient)/dashboard");
             }
             else if (data.role === "caregiver") {
-                router.replace("./caregiverDashboard");
+                router.replace("/(caregiver)/dashboard");
             }
 
         } catch (err: any) {

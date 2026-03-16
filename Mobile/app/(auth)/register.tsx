@@ -1,7 +1,9 @@
 import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
 import { RadioButton } from "react-native-paper";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { router } from "expo-router";
 import { BASE_URL } from "@/constants/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Register() {
     const [name, setName] = useState("");
@@ -10,6 +12,29 @@ export default function Register() {
     const [showPassword, setShowPassword] = useState(false);
     const [role, setRole] = useState("patient");
     const [phone, setPhone] = useState("");
+
+    useEffect(() => {
+    const checkLogin = async () => {
+      const userInfo = await AsyncStorage.getItem("userInfo");
+
+      if(userInfo) {
+        const parsedUser = JSON.parse(userInfo);
+
+        if(router.canDismiss()){
+          router.dismissAll();
+        }
+          
+        if(parsedUser.role === "patient") {
+          router.replace("/(patient)/dashboard");
+        }
+        else if(parsedUser.role === "caregiver") {
+          router.replace("/(caregiver)/dashboard");
+        }
+      }
+    };
+
+    checkLogin();
+  }, []);
 
     const handleRegister = async () => {
         try {
@@ -25,9 +50,23 @@ export default function Register() {
                 throw new Error(data.message || "Register failed");
             }
 
-            Alert.alert("User Registered: ", JSON.stringify(data, null, 2));
+            await AsyncStorage.setItem("userToken", data.token);
+            await AsyncStorage.setItem("userInfo", JSON.stringify(data));
+            console.log("Token saved");
+
+            if(router.canDismiss()){
+                router.dismissAll();
+            }
+
+            if(data.role == "patient"){
+                router.replace("/(patient)/dashboard");
+            }
+            else if(data.role == "caregiver"){
+                router.replace("/(caregiver)/dashboard");
+            }
+
         } catch (err: any){
-            Alert.alert("Error: ", err.message);
+            alert(["Error: ", err.message]);
         }
     };
 

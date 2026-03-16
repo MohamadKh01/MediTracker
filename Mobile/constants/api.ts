@@ -1,1 +1,1 @@
-export const BASE_URL = "http://192.168.0.100:5000";
+export const BASE_URL = `http://${process.env.EXPO_PUBLIC_LOCAL_IP}:${process.env.EXPO_PUBLIC_PORT}`;

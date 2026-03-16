@@ -8,7 +8,7 @@ export default function PatientDashboard() {
         await AsyncStorage.removeItem("userInfo");
         await AsyncStorage.removeItem("userToken");
 
-        router.replace("./login");
+        router.replace('/(auth)/login');
     }
 
     return (
