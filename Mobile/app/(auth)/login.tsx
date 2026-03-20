@@ -1,111 +1,76 @@
-import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
-import { useEffect, useState } from "react";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
+import { useState } from "react";
 
+import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
 
 export default function Login() {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
+  const { signIn } = useAuth();
 
-    useEffect(() => {
-    const checkLogin = async () => {
-      const userInfo = await AsyncStorage.getItem("userInfo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-      if(userInfo) {
-        const parsedUser = JSON.parse(userInfo);
+  const handleLogin = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json", },
+        body: JSON.stringify({ email, password, }),
+      });
 
-        if(router.canDismiss()){
-          router.dismissAll();
-        }
-          
-        if(parsedUser.role === "patient") {
-          router.replace("/(patient)/dashboard");
-        }
-        else if(parsedUser.role === "caregiver") {
-          router.replace("/(caregiver)/dashboard");
-        }
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed");
       }
-    };
 
-    checkLogin();
-  }, []);
+      await signIn(data)
 
-    const handleLogin = async () => {
-        try{
-            const response = await fetch(`${BASE_URL}/api/auth/login`, {
-                method: "POST",
-                headers: { "content-type": "application/json", },
-                body: JSON.stringify({ email, password, }),
-            });
+    } catch (err: any) {
+      alert(["Error: ", err.message]);
+    }
+  };
 
-            const data = await response.json();
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Login</Text>
 
-            if(!response.ok) {
-                throw new Error(data.message || "Login failed");
-            }
+      <Text>Email</Text>
+      <TextInput
+        style={styles.input}
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
 
-            await AsyncStorage.setItem("userToken", data.token);
-            await AsyncStorage.setItem("userInfo", JSON.stringify(data));
-            console.log("Token saved");
+      <Text>Password</Text>
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={styles.passwordInput}
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+          autoCapitalize="none"
+        />
 
-            if(router.canDismiss()){
-                router.dismissAll();
-            }
+        <Pressable onPress={() => setShowPassword(!showPassword)}>
+          <Text style={styles.toggleText}>
+            {showPassword ? "Hide" : "Show"}
+          </Text>
+        </Pressable>
+      </View>
 
-            if (data.role === "patient") {
-                router.replace("/(patient)/dashboard");
-            }
-            else if (data.role === "caregiver") {
-                router.replace("/(caregiver)/dashboard");
-            }
-
-        } catch (err: any) {
-            Alert.alert("Error: ", err.message);
-        }
-    };
-
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Login</Text>
-
-            <Text>Email</Text>
-            <TextInput 
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-            />
-
-            <Text>Password</Text>
-            <View style={styles.passwordContainer}>
-                <TextInput 
-                    style={styles.passwordInput}
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={setPassword}
-                    autoCapitalize="none"
-                />
-
-                <Pressable onPress={() => setShowPassword(!showPassword)}>
-                    <Text style={styles.toggleText}>
-                        {showPassword ? "Hide" : "Show"}
-                    </Text>
-                </Pressable>
-            </View>
-
-            <Pressable style={styles.button} onPress={handleLogin}>
-                <Text style={styles.buttonText}>Login</Text>
-            </Pressable>
-        </View>
-    );
+      <Pressable style={styles.button} onPress={handleLogin}>
+        <Text style={styles.buttonText}>Login</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-container: {
+  container: {
     flex: 1,
     justifyContent: "flex-start",
     paddingTop: 80,

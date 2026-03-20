@@ -1,24 +1,22 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { useAuth } from "@/context/authContext";
 
 export default function PatientDashboard() {
+  const { signOut } = useAuth()
 
-    const HandleLogout = async () => {
-        await AsyncStorage.removeItem("userInfo");
-        await AsyncStorage.removeItem("userToken");
+  const HandleLogout = async () => {
+    await signOut
+  }
 
-        router.replace('/(auth)/login');
-    }
-
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Patient Dashboard</Text>
-            <Pressable style={styles.button} onPress={HandleLogout}>
-                <Text style={styles.buttonText}>Logout</Text>
-            </Pressable>
-        </View>
-    );
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Patient Dashboard</Text>
+      <Pressable style={styles.button} onPress={HandleLogout}>
+        <Text style={styles.buttonText}>Logout</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

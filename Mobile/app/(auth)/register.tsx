@@ -1,134 +1,100 @@
-import { View, Text, TextInput, StyleSheet, Pressable, Alert } from "react-native";
+import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
 import { RadioButton } from "react-native-paper";
-import { useEffect, useState } from "react";
-import { router } from "expo-router";
+import { useState } from "react";
+
 import { BASE_URL } from "@/constants/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@/context/authContext";
 
 export default function Register() {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [role, setRole] = useState("patient");
-    const [phone, setPhone] = useState("");
+  const { signIn } = useAuth();
 
-    useEffect(() => {
-    const checkLogin = async () => {
-      const userInfo = await AsyncStorage.getItem("userInfo");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState("patient");
+  const [phone, setPhone] = useState("");
 
-      if(userInfo) {
-        const parsedUser = JSON.parse(userInfo);
+  const handleRegister = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json", },
+        body: JSON.stringify({ name, email, password, role, phone }),
+      });
 
-        if(router.canDismiss()){
-          router.dismissAll();
-        }
-          
-        if(parsedUser.role === "patient") {
-          router.replace("/(patient)/dashboard");
-        }
-        else if(parsedUser.role === "caregiver") {
-          router.replace("/(caregiver)/dashboard");
-        }
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Register failed");
       }
-    };
 
-    checkLogin();
-  }, []);
+      await signIn(data);
 
-    const handleRegister = async () => {
-        try {
-            const response = await fetch(`${BASE_URL}/api/auth/register`, {
-                method: "POST",
-                headers: { "content-type": "application/json", },
-                body: JSON.stringify({ name, email, password, role, phone }),
-            });
+    } catch (err: any) {
+      alert(["Error: ", err.message]);
+    }
+  };
 
-            const data = await response.json();
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Register</Text>
 
-            if(!response.ok){
-                throw new Error(data.message || "Register failed");
-            }
+      <Text>Name</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+      />
 
-            await AsyncStorage.setItem("userToken", data.token);
-            await AsyncStorage.setItem("userInfo", JSON.stringify(data));
-            console.log("Token saved");
+      <Text>Email</Text>
+      <TextInput
+        style={styles.input}
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
 
-            if(router.canDismiss()){
-                router.dismissAll();
-            }
+      <Text>Password</Text>
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={styles.passwordInput}
+          secureTextEntry={!showPassword}
+          value={password}
+          onChangeText={setPassword}
+          autoCapitalize="none"
+        />
 
-            if(data.role == "patient"){
-                router.replace("/(patient)/dashboard");
-            }
-            else if(data.role == "caregiver"){
-                router.replace("/(caregiver)/dashboard");
-            }
+        <Pressable onPress={() => setShowPassword(!showPassword)}>
+          <Text style={styles.toggleText}>
+            {showPassword ? "Hide" : "Show"}
+          </Text>
+        </Pressable>
+      </View>
 
-        } catch (err: any){
-            alert(["Error: ", err.message]);
-        }
-    };
+      <Text>Role</Text>
+      <RadioButton.Group value={role} onValueChange={(val: string) => setRole(val)}>
+        <RadioButton.Item label="Patient" value="patient" />
+        <RadioButton.Item label="Caregiver" value="caregiver" />
+      </RadioButton.Group>
 
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Register</Text>
+      <Text>Phone</Text>
+      <TextInput
+        style={styles.input}
+        value={phone}
+        onChangeText={setPhone}
+      />
 
-            <Text>Name</Text>
-            <TextInput 
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-            />
-
-            <Text>Email</Text>
-            <TextInput 
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-            />
-
-            <Text>Password</Text>
-            <View style={styles.passwordContainer}>
-                <TextInput 
-                    style={styles.passwordInput}
-                    secureTextEntry={!showPassword}
-                    value={password}
-                    onChangeText={setPassword}
-                    autoCapitalize="none"
-                />
-
-                <Pressable onPress={() => setShowPassword(!showPassword)}>
-                    <Text style={styles.toggleText}>
-                        {showPassword ? "Hide" : "Show"}
-                    </Text>
-                </Pressable>
-            </View>
-
-            <Text>Role</Text>
-            <RadioButton.Group value={role} onValueChange={(val: string) => setRole(val)}>
-                <RadioButton.Item label="Patient" value="patient" />
-                <RadioButton.Item label="Caregiver" value="caregiver" />
-            </RadioButton.Group>
-
-            <Text>Phone</Text>
-            <TextInput 
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-            />
-
-            <Pressable style={styles.button} onPress={handleRegister}>
-                <Text style={styles.buttonText}>Register</Text>
-            </Pressable>
-        </View>
-    );
+      <Pressable style={styles.button} onPress={handleRegister}>
+        <Text style={styles.buttonText}>Register</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-container: {
+  container: {
     flex: 1,
     justifyContent: "flex-start",
     paddingTop: 80,
