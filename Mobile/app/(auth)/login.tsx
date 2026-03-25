@@ -1,18 +1,26 @@
 import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const { isLoading, user, signIn, checkLogin } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      checkLogin();
+    }
+  }, [isLoading]);
 
   const handleLogin = async () => {
     try {
+      setIsSubmitting(true);
       const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "content-type": "application/json", },
@@ -25,12 +33,16 @@ export default function Login() {
         throw new Error(data.message || "Login failed");
       }
 
-      await signIn(data)
-
+      await signIn(data);
     } catch (err: any) {
+      setIsSubmitting(false);
       alert(["Error: ", err.message]);
     }
   };
+
+  if (isLoading || user) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -62,8 +74,8 @@ export default function Login() {
         </Pressable>
       </View>
 
-      <Pressable style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+      <Pressable style={[styles.button, isSubmitting && { opacity: 0.5 }]} onPress={handleLogin} disabled={isSubmitting}>
+        <Text style={styles.buttonText}>{isSubmitting ? "Logging in..." : "Login"}</Text>
       </Pressable>
     </View>
   );

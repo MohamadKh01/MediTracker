@@ -1,12 +1,23 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useEffect } from "react";
 
 import { useAuth } from "@/context/authContext";
 
 export default function PatientDashboard() {
-  const { signOut } = useAuth()
+  const { user, isLoading, signOut, authenticate } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      authenticate("patient");
+    }
+  }, [isLoading]);
 
   const HandleLogout = async () => {
-    await signOut
+    await signOut();
+  }
+
+  if (isLoading || !user || user.role !== "patient") {
+    return null
   }
 
   return (

@@ -1,12 +1,12 @@
 import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
 import { RadioButton } from "react-native-paper";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BASE_URL } from "@/constants/api";
 import { useAuth } from "@/context/authContext";
 
 export default function Register() {
-  const { signIn } = useAuth();
+  const { isLoading, user, checkLogin, signIn } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,9 +14,17 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("patient");
   const [phone, setPhone] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      checkLogin();
+    }
+  }, [isLoading]);
 
   const handleRegister = async () => {
     try {
+      setIsSubmitting(true);
       const response = await fetch(`${BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "content-type": "application/json", },
@@ -32,9 +40,14 @@ export default function Register() {
       await signIn(data);
 
     } catch (err: any) {
+      setIsSubmitting(false);
       alert(["Error: ", err.message]);
     }
   };
+
+  if (isLoading || user) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
@@ -84,10 +97,11 @@ export default function Register() {
         style={styles.input}
         value={phone}
         onChangeText={setPhone}
+        keyboardType="phone-pad"
       />
 
-      <Pressable style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Register</Text>
+      <Pressable style={[styles.button, isSubmitting && { opacity: 0.5 }]} onPress={handleRegister} disabled={isSubmitting}>
+        <Text style={styles.buttonText}>{isSubmitting ? "Registering..." : "Register"}</Text>
       </Pressable>
     </View>
   );

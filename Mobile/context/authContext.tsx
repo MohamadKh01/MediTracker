@@ -7,6 +7,8 @@ const AuthContext = createContext<{
     isLoading: boolean;
     signIn: (data: any) => void;
     signOut: () => void;
+    authenticate: (group: any) => void;
+    checkLogin: () => void;
 } | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -18,7 +20,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const info = await AsyncStorage.getItem("userInfo");
 
             if (info) {
-                setUser(JSON.parse(info));
+                try {
+                    setUser(JSON.parse(info));
+                } catch (err) {
+                    console.error("failed to parse user info: ", err);
+                    AsyncStorage.removeItem("userInfo");
+                }
             }
 
             setIsLoading(false);
@@ -43,21 +50,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         await AsyncStorage.removeItem("userInfo");
         await AsyncStorage.removeItem("userToken");
 
-        router.replace("/(auth)/login");
+        router.replace("/");
     };
 
     const authenticate = async (group: any) => {
         if (!user) {
-            router.replace("/(auth)/login");
+            return router.replace("/");
         }
         if (group !== user.role) {
+            alert("Unauthorized access!! you are being logged out!!");
             signOut();
-            router.replace("/(auth)/login");
+        }
+    }
+
+    const checkLogin = async () => {
+        if (user) {
+
+            if (router.canDismiss()) {
+                router.dismissAll();
+            }
+
+            if (user.role === "patient") {
+                router.replace("/(patient)/dashboard");
+            }
+            else if (user.role === "caregiver") {
+                router.replace("/(caregiver)/dashboard");
+            }
+            else {
+                alert("Unknown user role! you are being logged out!");
+                router.replace("/");
+            }
         }
     }
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, signIn, signOut }}>
+        <AuthContext.Provider value={{ user, isLoading, signIn, signOut, authenticate, checkLogin }}>
             {children}
         </AuthContext.Provider>
     );

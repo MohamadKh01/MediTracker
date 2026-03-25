@@ -1,32 +1,21 @@
 import { Text, View, StyleSheet, Pressable } from "react-native";
 import { router } from "expo-router";
 import { useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { useAuth } from "../context/authContext";
 
 export default function Welcome() {
+  const { user, isLoading, checkLogin } = useAuth();
 
   useEffect(() => {
-    const checkLogin = async () => {
-      const userInfo = await AsyncStorage.getItem("userInfo");
+    if (!isLoading) {
+      checkLogin();
+    }
+  }, [isLoading]);
 
-      if(userInfo) {
-        const parsedUser = JSON.parse(userInfo);
-
-        if(router.canDismiss()){
-          router.dismissAll();
-        }
-          
-        if(parsedUser.role === "patient") {
-          router.replace("/(patient)/dashboard");
-        }
-        else if(parsedUser.role === "caregiver") {
-          router.replace("/(caregiver)/dashboard");
-        }
-      }
-    };
-
-    checkLogin();
-  }, []);
+  if (isLoading || user) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>

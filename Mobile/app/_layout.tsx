@@ -13,13 +13,15 @@ function RootLayoutNav() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20} >
       <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
         {!user ? (
           <Stack.Screen name="(auth)" />
         ) : (
-          <>
-            {user.role === "patient" && <Stack.Screen name="(patient)" />}
-            {user.role === "caregiver" && <Stack.Screen name="(caregiver)" />}
-          </>
+          user.role === "patient" ? (
+            <Stack.Screen name="(patient)" />
+          ) : (
+            <Stack.Screen name="(caregiver)" />
+          )
         )}
       </Stack>
     </KeyboardAvoidingView>

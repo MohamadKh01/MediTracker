@@ -1,11 +1,23 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useEffect } from "react";
+
 import { useAuth } from "@/context/authContext";
 
 export default function CaregiverDashboard() {
-  const { signOut } = useAuth();
+  const { user, isLoading, signOut, authenticate } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      authenticate("caregiver");
+    }
+  }, [isLoading]);
 
   const HandleLogout = async () => {
     await signOut();
+  }
+
+  if (isLoading || !user || user.role !== "caregiver") {
+    return null;
   }
 
   return (
