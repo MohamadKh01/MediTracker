@@ -37,7 +37,7 @@ const getAllMedications = async (req, res) => {
         // find all medications of this user
         const meds = await Medication.find({ user: req.user._id }).sort({ createdAt: -1 });
 
-        return res.status(200).json(meds);
+        return res.status(200).json({ success: true, data: meds });
     } catch (err) {
         console.error("Med fetching error: ", err);
         return res.status(500).json({ message: "server error" });
