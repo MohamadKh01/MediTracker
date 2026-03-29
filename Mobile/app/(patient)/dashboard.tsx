@@ -16,57 +16,32 @@ interface Medication {
   notes?: string;
 }
 
-const MOCK_MEDICATIONS: Medication[] = [
-  {
-    _id: '1',
-    name: 'Amoxicillin',
-    dosage: '500mg',
-    frequency: 2,
-    times: ['08:00', '20:00'],
-    startDate: new Date().toISOString(),
-    notes: 'Take after meals'
-  },
-  {
-    _id: '2',
-    name: 'Lisinopril',
-    dosage: '10mg',
-    frequency: 1,
-    times: ['09:00'],
-    startDate: new Date().toISOString(),
-  },
-  {
-    _id: '3',
-    name: 'Vitamin D3',
-    dosage: '2000IU',
-    frequency: 1,
-    times: ['12:00'],
-    startDate: new Date().toISOString(),
-  }
-];
-
-
 export default function PatientDashboard() {
   const { user, isLoading, signOut, authenticate } = useAuth();
 
   const insets = useSafeAreaInsets();
 
-  const [medications, setMedications] = useState<Medication[]>(MOCK_MEDICATIONS);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    if (!isLoading) {
-      authenticate("patient");
-      fetchMedications();
+    if (isLoading || !user) {
+      return;
     }
-  }, [isLoading]);
+
+    authenticate("patient");
+    fetchMedications();
+  }, [isLoading, user]);
 
   const fetchMedications = async () => {
     try {
       const response = await fetch(`${BASE_URL}/api/medications`, {
         headers: { Authorization: `Bearer ${user?.token}` }
       });
+
       const result = await response.json();
-      if(result.success) {
+
+      if (result.success) {
         setMedications(result.data);
       }
     } catch (err) {
@@ -85,7 +60,7 @@ export default function PatientDashboard() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom}]}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar barStyle="dark-content" />
 
       {/* HEADER */}
@@ -118,19 +93,19 @@ export default function PatientDashboard() {
                 <Text style={styles.medSubtext}>{item.dosage} - {item.frequency} x daily</Text>
               </View>
               <View style={styles.timeBadge}>
-                <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join(', '): "No time"}</Text>
+                <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join(', ') : "No time"}</Text>
               </View>
             </View>
           )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No medications scheduled.</Text>
-            </View>
-          } />
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No medications scheduled.</Text>
+              </View>
+            } />
         )}
       </View>
 
-      <TouchableOpacity style={[styles.fab, {bottom: insets.bottom + 20}]} onPress={() => alert("add med button clicked")}>
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={() => alert("add med button clicked")}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
     </View>
@@ -219,7 +194,7 @@ const styles = StyleSheet.create({
     borderColor: "#F3F4F6",
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
   },
   medName: {
