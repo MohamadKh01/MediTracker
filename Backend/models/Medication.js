@@ -19,7 +19,8 @@ const MedicationSchema = new mongoose.Schema({
         required: [true, 'Frequency is required'],
     },
     times: [{
-        type: String,
+        type: [String],
+        default: [],
     },],
     startDate: {
         type: Date,

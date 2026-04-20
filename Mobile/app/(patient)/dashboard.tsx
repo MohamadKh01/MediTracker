@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router, useFocusEffect } from "expo-router";
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
@@ -11,8 +12,8 @@ interface Medication {
   dosage: string;
   frequency: number;
   times: string[];
-  startDate: string;
-  endDate?: string;
+  startDate: Date;
+  endDate?: Date;
   notes?: string;
 }
 
@@ -29,9 +30,17 @@ export default function PatientDashboard() {
       return;
     }
 
-    authenticate("patient");
     fetchMedications();
   }, [isLoading, user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if(!user){
+        return;
+      }
+      fetchMedications();
+    }, [user])
+  );
 
   const fetchMedications = async () => {
     try {
@@ -67,7 +76,7 @@ export default function PatientDashboard() {
       <View style={styles.header}>
         <Text style={styles.brand}>MediTracker</Text>
 
-        <TouchableOpacity style={styles.userSection} onPress={() => alert("Open menu")}>
+        <TouchableOpacity style={styles.userSection} onPress={() => signOut()}>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{user.name || "User"}</Text>
             <Text style={styles.userRole}>{user.role}</Text>
@@ -93,7 +102,7 @@ export default function PatientDashboard() {
                 <Text style={styles.medSubtext}>{item.dosage} - {item.frequency} x daily</Text>
               </View>
               <View style={styles.timeBadge}>
-                <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join(', ') : "No time"}</Text>
+                <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join('; ') : "No time"}</Text>
               </View>
             </View>
           )}
@@ -105,7 +114,8 @@ export default function PatientDashboard() {
         )}
       </View>
 
-      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={() => alert("add med button clicked")}>
+      {/* FAB */}
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={() => router.push("/(patient)/addMedication")}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
     </View>
