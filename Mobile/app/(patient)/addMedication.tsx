@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Platform, Pressable, Keyboard } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker"
 
@@ -11,6 +11,12 @@ export default function AddMedication() {
     const { user } = useAuth();
 
     const insets = useSafeAreaInsets();
+
+    const params = useLocalSearchParams();
+    const editMed = useMemo(() => {
+        return params.medication ? JSON.parse(params.medication as string) : null;
+    }, [params.medication]);
+    const isEditing = !!editMed;
 
     const [name, setName] = useState("");
     const [dosage, setDosage] = useState("");
@@ -24,15 +30,27 @@ export default function AddMedication() {
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
     const [notes, setNotes] = useState("");
 
+    useEffect(() => {
+        if (isEditing && editMed) {
+            setName(editMed.name);
+            setDosage(editMed.dosage);
+            setFrequency(editMed.frequency.toString());
+            setTimes(editMed.times || []);
+            setStartDate(new Date(editMed.startDate));
+            setEndDate(new Date(editMed.endDate));
+            setNotes(editMed.notes || "");
+        }
+    }, [isEditing, editMed]);
+
     const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-        if(Platform.OS === "android") {
+        if (Platform.OS === "android") {
             setShowTimePicker(false);
-            if(selectedDate){
+            if (selectedDate) {
                 addTimeToGrid(selectedDate);
             }
         }
         else {
-            if(selectedDate){
+            if (selectedDate) {
                 setTempTime(selectedDate);
             }
         }
@@ -43,7 +61,7 @@ export default function AddMedication() {
         const minutes = date.getMinutes().toString().padStart(2, '0');
         const newTime = `${hours}:${minutes}`;
 
-        if(!times.includes(newTime)){
+        if (!times.includes(newTime)) {
             setTimes([...times, newTime].sort());
         }
     }
@@ -77,8 +95,12 @@ export default function AddMedication() {
 
     const handleAddMedication = async () => {
         try {
-            const response = await fetch(`${BASE_URL}/api/medications`, {
-                method: "POST",
+            const url = isEditing ? `${BASE_URL}/api/medications/${editMed._id}` : `${BASE_URL}/api/medications`;
+
+            const method = isEditing ? "PUT" : "POST";
+
+            const response = await fetch(url, {
+                method: method,
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${user.token}`,
@@ -112,7 +134,7 @@ export default function AddMedication() {
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-            <Text style={styles.title}>Add Medication</Text>
+            <Text style={styles.title}>{isEditing ? "Edit Medication" : "Add Medication"}</Text>
 
             <TextInput
                 placeholder="Medication name"
@@ -146,7 +168,7 @@ export default function AddMedication() {
                         <Text style={styles.timeChipText}>{time}  x</Text>
                     </TouchableOpacity>
                 ))}
-                <TouchableOpacity style={styles.addTimeButton} onPress={() => {Keyboard.dismiss(); setShowTimePicker(true)}}>
+                <TouchableOpacity style={styles.addTimeButton} onPress={() => { Keyboard.dismiss(); setShowTimePicker(true) }}>
                     <Text style={styles.addTimeText}>+ Add time</Text>
                 </TouchableOpacity>
             </View>
@@ -166,7 +188,7 @@ export default function AddMedication() {
                                     <Text style={{ color: "#2563EB", fontWeight: "bold" }}>Confirm</Text>
                                 </TouchableOpacity>
                             </View>
-                            <DateTimePicker 
+                            <DateTimePicker
                                 value={tempTime}
                                 mode="time"
                                 is24Hour={true}
@@ -178,7 +200,7 @@ export default function AddMedication() {
                         </View>
                     </View>
                 ) : (
-                    <DateTimePicker 
+                    <DateTimePicker
                         value={new Date()}
                         mode="time"
                         is24Hour={true}
@@ -214,7 +236,7 @@ export default function AddMedication() {
 
             <View style={styles.buttonContainer}>
                 <TouchableOpacity style={styles.addButton} onPress={handleAddMedication}>
-                    <Text style={styles.addButtonText}>Add Medication</Text>
+                    <Text style={styles.addButtonText}>{isEditing ? "Edit Medication" : "Add Medication"}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
                     <Text style={styles.cancelButtonText}>cancel</Text>

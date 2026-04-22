@@ -35,7 +35,7 @@ export default function PatientDashboard() {
 
   useFocusEffect(
     useCallback(() => {
-      if(!user){
+      if (!user) {
         return;
       }
       fetchMedications();
@@ -68,6 +68,31 @@ export default function PatientDashboard() {
     );
   }
 
+  const handleDelete = async (id: string) => {
+    try {
+      const url = `${BASE_URL}/api/medications/${id}`;
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (response.ok) {
+        setMedications((prev) => prev.filter((med) => med._id !== id));
+        alert("Med deleted");
+      }
+      else {
+        const res = await response.json();
+        alert(res.message || "medication not deleted");
+      }
+    } catch (err) {
+      console.error("Fetch error: ", err);
+      alert("failed to delete");
+    }
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar barStyle="dark-content" />
@@ -97,13 +122,30 @@ export default function PatientDashboard() {
         ) : (
           <FlatList data={medications} keyExtractor={(item) => item._id} renderItem={({ item }) => (
             <View style={styles.medCard}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.medName}>{item.name}</Text>
                 <Text style={styles.medSubtext}>{item.dosage} - {item.frequency} x daily</Text>
+                <View style={styles.timeBadge}>
+                  <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join('; ') : "No time"}</Text>
+                </View>
               </View>
-              <View style={styles.timeBadge}>
-                <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join('; ') : "No time"}</Text>
-              </View>
+
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => router.push({
+                  pathname: "/(patient)/addMedication",
+                  params: { medication: JSON.stringify(item) }
+                })}
+              >
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item._id)}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
             </View>
           )}
             ListEmptyComponent={
@@ -235,6 +277,30 @@ const styles = StyleSheet.create({
   emptyText: {
     color: "#9CA3AF",
     fontSize: 15,
+  },
+  editButton: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  editButtonText: {
+    color: "#4B5563",
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  deleteButton: {
+    backgroundColor: "#ff0000",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  deleteButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600"
   },
 
   //FAB
