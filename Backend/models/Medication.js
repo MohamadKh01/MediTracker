@@ -18,10 +18,10 @@ const MedicationSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Frequency is required'],
     },
-    times: [{
+    times: {
         type: [String],
         default: [],
-    },],
+    },
     startDate: {
         type: Date,
         required: [true, 'Start Date is required'],

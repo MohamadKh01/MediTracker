@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform } from "react-native";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform, LayoutAnimation, Pressable, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
+import { Calendar } from "react-native-calendars";
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
@@ -18,12 +19,15 @@ interface Medication {
 }
 
 export default function PatientDashboard() {
-  const { user, isLoading, signOut, authenticate } = useAuth();
+  const { user, isLoading, signOut } = useAuth();
 
   const insets = useSafeAreaInsets();
 
   const [medications, setMedications] = useState<Medication[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
 
   useEffect(() => {
     if (isLoading || !user) {
@@ -51,6 +55,7 @@ export default function PatientDashboard() {
       const result = await response.json();
 
       if (result.success) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setMedications(result.data);
       }
     } catch (err) {
@@ -93,6 +98,78 @@ export default function PatientDashboard() {
     }
   }
 
+  const toggleExpand = (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedId(expandedId === id ? null : id);
+  }
+
+  // Helper to shift date
+  const changeDate = (days: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const newDate = new Date(selectedDate);
+    newDate.setDate(selectedDate.getDate() + days);
+    setSelectedDate(newDate);
+  }
+
+  // Filter medication for the selected day
+  const filterMedications = medications.filter(med => {
+    if (!med.startDate) {
+      return false;
+    }
+    const start = new Date(med.startDate);
+    const end = med.endDate ? new Date(med.endDate) : null;
+
+    const current = new Date(selectedDate);
+    current.setHours(0, 0, 0, 0);
+    start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(0, 0, 0, 0);
+
+    return current >= start && (!end || current <= end);
+  });
+
+  const getLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // generate marked dates for the calendar
+  const markedDates = useMemo(() => {
+    const marks: any = {};
+
+    // marl the selected date as a solid blue circle
+    const selectedStr = getLocalDateString(selectedDate);
+    marks[selectedStr] = { selected: true, selectedColor: "#2563EB" };
+
+    // add dots for dates with medications
+    medications.forEach(med => {
+      const start = new Date(med.startDate);
+      const end = med.endDate ? new Date(med.endDate) : new Date(start.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+      let current = new Date(start);
+      let safetyCounter = 0;
+
+      while (current <= end && safetyCounter < 365) {
+        const dateString = getLocalDateString(current);
+        if (!marks[dateString]) {
+          marks[dateString] = { marked: true, dotColor: "#2563EB" };
+        }
+        else {
+          marks[dateString] = { ...marks[dateString], marked: true, dotColor: "#2563EB" };
+        }
+        current.setDate(current.getDate() + 1);
+        safetyCounter++;
+
+        // limit to 1 year
+        if (current > new Date(new Date().setFullYear(new Date().getFullYear() + 1))) {
+          break;
+        }
+      }
+    });
+    return marks;
+  }, [medications, selectedDate]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar barStyle="dark-content" />
@@ -116,38 +193,109 @@ export default function PatientDashboard() {
 
       {/* BODY */}
       <View style={styles.body}>
-        <Text style={styles.sectionTitle}>Today's Medications</Text>
+
+        {/* Date selector */}
+        <View style={styles.dateSelector}>
+          <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateNavButton}>
+            <Text style={styles.dateNavText}>{"<"}</Text>
+          </TouchableOpacity>
+
+          <Pressable onPress={() => setIsCalendarVisible(true)} style={styles.dateInfo}>
+            <Text style={styles.dateTitle}>{selectedDate.toDateString() === new Date().toDateString() ? "Today" : selectedDate.toLocaleDateString('en-US', { weekday: "long" })}</Text>
+            <Text style={styles.dateSubtitle}>{selectedDate.toLocaleDateString()} ▾</Text>
+          </Pressable>
+
+          <TouchableOpacity onPress={() => changeDate(1)} style={styles.dateNavButton}>
+            <Text style={styles.dateNavText}>{">"}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Calendar */}
+        <Modal visible={isCalendarVisible} animationType="none" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.contentCloser} onPress={() => setIsCalendarVisible(false)} />
+            <View style={styles.calendarContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Date</Text>
+                <TouchableOpacity onPress={() => setIsCalendarVisible(false)}>
+                  <Text style={styles.closeText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              <Calendar
+                current={getLocalDateString(selectedDate)}
+                markedDates={markedDates}
+                onDayPress={(day) => {
+                  setSelectedDate(new Date(day.timestamp));
+                  setIsCalendarVisible(false);
+                }}
+                theme={{
+                  selectedDayBackgroundColor: "#2563EB",
+                  todayTextColor: "#2563EB",
+                  arrowColor: "#2563EB",
+                  dotColor: "#2563EB",
+                }}
+              />
+            </View>
+          </View>
+        </Modal>
+
+        <Text style={styles.sectionTitle}>Medications for this day: </Text>
         {fetching ? (
           <ActivityIndicator color="#2196F3" />
         ) : (
-          <FlatList data={medications} keyExtractor={(item) => item._id} renderItem={({ item }) => (
-            <View style={styles.medCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.medName}>{item.name}</Text>
-                <Text style={styles.medSubtext}>{item.dosage} - {item.frequency} x daily</Text>
-                <View style={styles.timeBadge}>
-                  <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times.join('; ') : "No time"}</Text>
+          <FlatList data={filterMedications} keyExtractor={(item) => item._id} renderItem={({ item }) => {
+            const isExpanded = expandedId === item._id;
+            return (
+              <Pressable
+                onPress={() => toggleExpand(item._id)}
+                style={[styles.medCard, isExpanded && styles.expandedCard]}
+              >
+                {/* Always visible */}
+                <View style={styles.cardMainRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.medName}>{item.name}</Text>
+                    <Text style={styles.medSubtext}>{item.dosage}</Text>
+                  </View>
+                  <View style={styles.timeBadge}>
+                    <Text style={styles.timeText}>{item.times && item.times.length > 0 ? item.times[0] : "No time"}{item.times.length > 1 && ` (+${item.times.length - 1})`}</Text>
+                  </View>
                 </View>
-              </View>
 
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={() => router.push({
-                  pathname: "/(patient)/addMedication",
-                  params: { medication: JSON.stringify(item) }
-                })}
-              >
-                <Text style={styles.editButtonText}>Edit</Text>
-              </TouchableOpacity>
+                {/* Hidden section */}
+                {isExpanded && (
+                  <View style={styles.detailsSection}>
+                    <View style={styles.divider} />
 
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDelete(item._id)}
-              >
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+                    <Text style={styles.detailLabel}>Frequency: <Text style={styles.detailValue}>{item.frequency}x daily</Text></Text>
+                    <Text style={styles.detailLabel}>All Times: <Text style={styles.detailValue}>{Array.isArray(item.times) ? item.times.join(", ") : item.times}</Text></Text>
+
+                    {item.notes && (
+                      <Text style={styles.detailLabel}>Notes: <Text style={styles.detailValue}>{item.notes}</Text></Text>
+                    )}
+
+                    <View style={styles.actionRow}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => router.push({
+                          pathname: "/(patient)/addMedication",
+                          params: { medication: JSON.stringify(item) }
+                        })}
+                      >
+                        <Text style={styles.editButtonText}>Edit</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDelete(item._id)}
+                      >
+                        <Text style={styles.deleteButtonText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </Pressable>
+            );
+          }}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>No medications scheduled.</Text>
@@ -228,6 +376,76 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  dateSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  dateNavButton: {
+    width: 40,
+    height: 40,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dateNavText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2563EB"
+  },
+  dateInfo: {
+    alignItems: "center",
+  },
+  dateTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  dateSubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#00000080",
+    justifyContent: "flex-end",
+  },
+  contentCloser: {
+    flex: 1,
+  },
+  calendarContainer: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  closeText: {
+    color: "#2563EB",
+    fontWeight: '600',
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -236,18 +454,42 @@ const styles = StyleSheet.create({
   },
   medCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "#F3F4F6",
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
+    overflow: 'hidden',
+  },
+  expandedCard: {
+    borderColor: "#2563EB",
+    borderWidth: 1.5,
+  },
+  cardMainRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  detailsSection: {
+    marginTop: 15,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginBottom: 15,
+  },
+  detailLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  detailValue: {
+    color: "#1F2937",
+    fontWeight: "500",
   },
   medName: {
     fontSize: 16,
@@ -278,12 +520,17 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 15,
   },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 20,
+    gap: 10,
+  },
   editButton: {
     backgroundColor: "#F3F4F6",
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    marginLeft: 10,
   },
   editButtonText: {
     color: "#4B5563",
@@ -291,15 +538,13 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
   deleteButton: {
-    backgroundColor: "#ff0000",
-    paddingHorizontal: 12,
+    backgroundColor: "#FEE2E2",
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    marginLeft: 10,
   },
   deleteButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
+    color: "#EF4444",
     fontWeight: "600"
   },
 
