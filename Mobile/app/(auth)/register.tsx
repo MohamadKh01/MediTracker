@@ -16,12 +16,14 @@ export default function Register() {
   const [phone, setPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // check if user exists when page loads
   useEffect(() => {
     if (!isLoading) {
       checkLogin();
     }
   }, [isLoading]);
 
+  // send credentials to the backend and handle response
   const handleRegister = async () => {
     try {
       setIsSubmitting(true);
@@ -37,14 +39,15 @@ export default function Register() {
         throw new Error(data.message || "Register failed");
       }
 
+      // if success, call signIn function to save user data
       await signIn(data);
-
     } catch (err: any) {
       setIsSubmitting(false);
       alert(["Error: ", err.message]);
     }
   };
 
+  // show nothing is auth is still loading or user exists, layout will auto redirect
   if (isLoading || user) {
     return null;
   }

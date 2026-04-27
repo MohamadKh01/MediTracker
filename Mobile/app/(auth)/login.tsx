@@ -12,12 +12,14 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // check if user is logged in when the page loads
   useEffect(() => {
     if (!isLoading) {
       checkLogin();
     }
   }, [isLoading]);
 
+  // send credentials to the backend and handle the response
   const handleLogin = async () => {
     try {
       setIsSubmitting(true);
@@ -33,6 +35,7 @@ export default function Login() {
         throw new Error(data.message || "Login failed");
       }
 
+      // if login successful, call the global signIn function to save user data
       await signIn(data);
     } catch (err: any) {
       setIsSubmitting(false);
@@ -40,6 +43,7 @@ export default function Login() {
     }
   };
 
+  // if auth is loading or user exists, show nothing, layout will redirect automatically
   if (isLoading || user) {
     return null;
   }

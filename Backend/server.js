@@ -9,6 +9,7 @@ const cors = require('cors');
 const connectDB = require('./config/db.js');
 const notFound = require('./middleware/notFound.js');
 const errorHandler = require('./middleware/errorMiddleware.js');
+const logger = require('./middleware/logger.js');
 const authRoutes = require('./routes/authRoutes.js');
 const medRoutes = require('./routes/medicationRoutes.js');
 
@@ -22,6 +23,7 @@ connectDB();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(logger);
 
 // routes
 app.use('/api/health', require('./routes/healthRoutes.js'));

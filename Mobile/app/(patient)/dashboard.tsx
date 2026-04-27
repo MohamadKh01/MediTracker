@@ -7,6 +7,7 @@ import { Calendar } from "react-native-calendars";
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
 
+// blueprint, defines the structure of Medication object
 interface Medication {
   _id: string;
   name: string;
@@ -21,15 +22,27 @@ interface Medication {
 export default function PatientDashboard() {
   const { user, isLoading, signOut } = useAuth();
 
+  // margin top under iphone dynamic island
   const insets = useSafeAreaInsets();
 
+  // medications of the current user
   const [medications, setMedications] = useState<Medication[]>([]);
+
+  // boolean for "are we still getting medications from database?"
   const [fetching, setFetching] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // current day for which we are showing meds on dashboard
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // med id of the expanded card
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // state of the calendar visibility
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
 
+  // fetch medication when page first load and when isLoading or user states are changed
   useEffect(() => {
+    // check if user exists before fetching meds
     if (isLoading || !user) {
       return;
     }
@@ -37,6 +50,7 @@ export default function PatientDashboard() {
     fetchMedications();
   }, [isLoading, user]);
 
+  // fetch meds every time dashboard becomes the active screen (for example after "Router.back" is called in add medication page)
   useFocusEffect(
     useCallback(() => {
       if (!user) {
@@ -46,6 +60,7 @@ export default function PatientDashboard() {
     }, [user])
   );
 
+  // fetch the current user's medication from database
   const fetchMedications = async () => {
     try {
       const response = await fetch(`${BASE_URL}/api/medications`, {
@@ -54,6 +69,7 @@ export default function PatientDashboard() {
 
       const result = await response.json();
 
+      // save medications in state if fetching is successful
       if (result.success) {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setMedications(result.data);
@@ -65,6 +81,7 @@ export default function PatientDashboard() {
     }
   };
 
+  // show a blank page with loader icon if user doesn't exist or user role is not a patient
   if (isLoading || !user || user.role !== "patient") {
     return (
       <View style={styles.centered}>
@@ -73,6 +90,7 @@ export default function PatientDashboard() {
     );
   }
 
+  // delete a medication form database
   const handleDelete = async (id: string) => {
     try {
       const url = `${BASE_URL}/api/medications/${id}`;
@@ -84,6 +102,7 @@ export default function PatientDashboard() {
         }
       });
 
+      // remove medication from state if deletion successful
       if (response.ok) {
         setMedications((prev) => prev.filter((med) => med._id !== id));
         alert("Med deleted");
@@ -98,6 +117,7 @@ export default function PatientDashboard() {
     }
   }
 
+  // save the id of the medication card we want to expand
   const toggleExpand = (id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedId(expandedId === id ? null : id);
@@ -113,6 +133,7 @@ export default function PatientDashboard() {
 
   // Filter medication for the selected day
   const filterMedications = medications.filter(med => {
+    // break if medication have no start date
     if (!med.startDate) {
       return false;
     }
@@ -122,11 +143,14 @@ export default function PatientDashboard() {
     const current = new Date(selectedDate);
     current.setHours(0, 0, 0, 0);
     start.setHours(0, 0, 0, 0);
-    if (end) end.setHours(0, 0, 0, 0);
+    if (end) {
+      end.setHours(0, 0, 0, 0);
+    }
 
     return current >= start && (!end || current <= end);
   });
 
+  // format date
   const getLocalDateString = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -176,8 +200,10 @@ export default function PatientDashboard() {
 
       {/* HEADER */}
       <View style={styles.header}>
+        {/* title */}
         <Text style={styles.brand}>MediTracker</Text>
 
+        {/* profile name, role and photo */}
         <TouchableOpacity style={styles.userSection} onPress={() => signOut()}>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{user.name || "User"}</Text>
@@ -196,15 +222,18 @@ export default function PatientDashboard() {
 
         {/* Date selector */}
         <View style={styles.dateSelector}>
+          {/* previous day button */}
           <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateNavButton}>
             <Text style={styles.dateNavText}>{"<"}</Text>
           </TouchableOpacity>
 
+          {/* current day, show calendar when clicked */}
           <Pressable onPress={() => setIsCalendarVisible(true)} style={styles.dateInfo}>
             <Text style={styles.dateTitle}>{selectedDate.toDateString() === new Date().toDateString() ? "Today" : selectedDate.toLocaleDateString('en-US', { weekday: "long" })}</Text>
             <Text style={styles.dateSubtitle}>{selectedDate.toLocaleDateString()} ▾</Text>
           </Pressable>
 
+          {/* next day button */}
           <TouchableOpacity onPress={() => changeDate(1)} style={styles.dateNavButton}>
             <Text style={styles.dateNavText}>{">"}</Text>
           </TouchableOpacity>
@@ -240,17 +269,23 @@ export default function PatientDashboard() {
         </Modal>
 
         <Text style={styles.sectionTitle}>Medications for this day: </Text>
+
         {fetching ? (
+          // loader icon if medications not ready
           <ActivityIndicator color="#2196F3" />
         ) : (
+          // list showing medication cards
           <FlatList data={filterMedications} keyExtractor={(item) => item._id} renderItem={({ item }) => {
+            // boolean to check if the current medication is the one we want to expand
             const isExpanded = expandedId === item._id;
+
             return (
+              // expand medication when clicked
               <Pressable
                 onPress={() => toggleExpand(item._id)}
                 style={[styles.medCard, isExpanded && styles.expandedCard]}
               >
-                {/* Always visible */}
+                {/* Always visible section of the card */}
                 <View style={styles.cardMainRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.medName}>{item.name}</Text>
@@ -261,7 +296,7 @@ export default function PatientDashboard() {
                   </View>
                 </View>
 
-                {/* Hidden section */}
+                {/* Hidden section of the card, shown when card is expanded*/}
                 {isExpanded && (
                   <View style={styles.detailsSection}>
                     <View style={styles.divider} />
@@ -274,6 +309,7 @@ export default function PatientDashboard() {
                     )}
 
                     <View style={styles.actionRow}>
+                      {/* edit medication button */}
                       <TouchableOpacity
                         style={styles.editButton}
                         onPress={() => router.push({
@@ -284,6 +320,7 @@ export default function PatientDashboard() {
                         <Text style={styles.editButtonText}>Edit</Text>
                       </TouchableOpacity>
 
+                      {/* delete medication button */}
                       <TouchableOpacity
                         style={styles.deleteButton}
                         onPress={() => handleDelete(item._id)}
@@ -297,6 +334,7 @@ export default function PatientDashboard() {
             );
           }}
             ListEmptyComponent={
+              // show a message when user have no medications
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>No medications scheduled.</Text>
               </View>
@@ -376,6 +414,8 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+
+  // selected day section
   dateSelector: {
     flexDirection: "row",
     alignItems: "center",
@@ -412,6 +452,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
   },
+
+  // calendar
   modalOverlay: {
     flex: 1,
     backgroundColor: "#00000080",
@@ -446,6 +488,8 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: '600',
   },
+
+  // card list
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -520,6 +564,8 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontSize: 15,
   },
+
+  // card buttons
   actionRow: {
     flexDirection: "row",
     justifyContent: "flex-end",

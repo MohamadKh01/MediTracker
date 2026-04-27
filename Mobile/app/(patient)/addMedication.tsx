@@ -10,6 +10,7 @@ import { BASE_URL } from "@/constants/api";
 export default function AddMedication() {
     const { user } = useAuth();
 
+    // margin top under iphone dynamic island
     const insets = useSafeAreaInsets();
 
     const params = useLocalSearchParams();
@@ -21,16 +22,21 @@ export default function AddMedication() {
     const [name, setName] = useState("");
     const [dosage, setDosage] = useState("");
     const [frequency, setFrequency] = useState("");
+
     const [times, setTimes] = useState<string[]>([]);
     const [tempTime, setTempTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
+
     const [startDate, setStartDate] = useState(new Date());
     const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+
     const [endDate, setEndDate] = useState(new Date());
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
     const [notes, setNotes] = useState("");
 
     useEffect(() => {
+        // if we are editing an existing med, fill inputs with med details
         if (isEditing && editMed) {
             setName(editMed.name);
             setDosage(editMed.dosage);
@@ -42,6 +48,7 @@ export default function AddMedication() {
         }
     }, [isEditing, editMed]);
 
+    //
     const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
         if (Platform.OS === "android") {
             setShowTimePicker(false);
@@ -56,34 +63,41 @@ export default function AddMedication() {
         }
     }
 
+    // add time to times list
     const addTimeToGrid = (date: Date) => {
         const hours = date.getHours().toString().padStart(2, '0');
         const minutes = date.getMinutes().toString().padStart(2, '0');
         const newTime = `${hours}:${minutes}`;
 
+        // add time only if it doesn't previously exist in times list
         if (!times.includes(newTime)) {
             setTimes([...times, newTime].sort());
         }
     }
 
+    // remove time from times list
     const removeTime = (timeToRemove: string) => {
         setTimes(times.filter(t => t !== timeToRemove));
     }
 
+    // when start date is selected, save it in state and hide the timePicker
     const handleStartDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
         setShowStartDatePicker(false);
         if (selectedDate) {
             setStartDate(selectedDate);
 
+            // start date can't be higher than end date
             if (selectedDate > endDate) {
                 setEndDate(selectedDate)
             }
         }
     }
 
+    // when end date is selected, save it in state and hide the timePicker
     const handleEndDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
         setShowEndDatePicker(false);
         if (selectedDate) {
+            // end date can't be lower than start
             if (selectedDate >= startDate) {
                 setEndDate(selectedDate);
             }
@@ -93,12 +107,15 @@ export default function AddMedication() {
         }
     }
 
+    // create or edit a new medication
     const handleAddMedication = async () => {
         try {
+            // select the corresponding URL and method depending on the action taken(create or edit medication)
             const url = isEditing ? `${BASE_URL}/api/medications/${editMed._id}` : `${BASE_URL}/api/medications`;
 
             const method = isEditing ? "PUT" : "POST";
 
+            // save changes to database
             const response = await fetch(url, {
                 method: method,
                 headers: {
@@ -110,6 +127,7 @@ export default function AddMedication() {
 
             const result = await response.json();
 
+            // go back to dashboard if action is successful
             if (response.ok) {
                 router.back();
             }
@@ -121,6 +139,7 @@ export default function AddMedication() {
         }
     };
 
+    // clear inputs when clicking cancel button
     const handleCancel = () => {
         setName("");
         setDosage("");
@@ -134,8 +153,10 @@ export default function AddMedication() {
 
     return (
         <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            {/* page title depending on action taken (create or edit medication) */}
             <Text style={styles.title}>{isEditing ? "Edit Medication" : "Add Medication"}</Text>
 
+            {/* form inputs */}
             <TextInput
                 placeholder="Medication name"
                 placeholderTextColor="#7d7c7c"
@@ -164,15 +185,19 @@ export default function AddMedication() {
             <Text style={styles.label}>Medication Times: </Text>
             <View style={styles.timesContainer}>
                 {times.map((time) => (
+                    // times element with delete button
                     <TouchableOpacity key={time} style={styles.timeChip} onPress={() => removeTime(time)}>
                         <Text style={styles.timeChipText}>{time}  x</Text>
                     </TouchableOpacity>
                 ))}
+
+                {/* add time button */}
                 <TouchableOpacity style={styles.addTimeButton} onPress={() => { Keyboard.dismiss(); setShowTimePicker(true) }}>
                     <Text style={styles.addTimeText}>+ Add time</Text>
                 </TouchableOpacity>
             </View>
 
+            {/* timePicker to fill times array */}
             {showTimePicker && (
                 Platform.OS === "ios" ? (
                     <View style={styles.iosModalWrapper}>
@@ -214,6 +239,8 @@ export default function AddMedication() {
             <Pressable style={styles.input} onPress={() => setShowStartDatePicker(true)}>
                 <Text style={{ color: "#000" }}>{startDate.toLocaleDateString()}</Text>
             </Pressable>
+
+            {/* time picker for start date */}
             {showStartDatePicker && (
                 <DateTimePicker style={{ marginBottom: 10 }} value={startDate} mode="date" onChange={handleStartDateChange} />
             )}
@@ -222,6 +249,8 @@ export default function AddMedication() {
             <Pressable style={styles.input} onPress={() => setShowEndDatePicker(true)}>
                 <Text style={{ color: "#000" }}>{endDate.toLocaleDateString()}</Text>
             </Pressable>
+
+            {/* time picker for end date */}
             {showEndDatePicker && (
                 <DateTimePicker style={{ marginBottom: 10 }} value={endDate} mode="date" minimumDate={startDate} onChange={handleEndDateChange} />
             )}
@@ -235,9 +264,12 @@ export default function AddMedication() {
             />
 
             <View style={styles.buttonContainer}>
+                {/* save button */}
                 <TouchableOpacity style={styles.addButton} onPress={handleAddMedication}>
                     <Text style={styles.addButtonText}>{isEditing ? "Edit Medication" : "Add Medication"}</Text>
                 </TouchableOpacity>
+
+                {/* cancel button */}
                 <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
                     <Text style={styles.cancelButtonText}>cancel</Text>
                 </TouchableOpacity>
@@ -271,6 +303,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
         marginLeft: 4,
     },
+
     timesContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
@@ -340,6 +373,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center"
     },
+    addButtonText: {
+        color: "#FFF",
+        fontWeight: "bold"
+    },
     cancelButton: {
         flex: 1,
         backgroundColor: "#F3F4F6",
@@ -348,10 +385,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         borderWidth: 1,
         borderColor: "#D1D5DB",
-    },
-    addButtonText: {
-        color: "#FFF",
-        fontWeight: "bold"
     },
     cancelButtonText: {
         color: "#4B5563",

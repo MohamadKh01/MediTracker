@@ -7,21 +7,26 @@ import { useAuth } from "../context/authContext";
 export default function Welcome() {
   const { user, isLoading, checkLogin } = useAuth();
 
+  // check if user is logged in on first page load and whenever isLoading state is updated
   useEffect(() => {
     if (!isLoading) {
       checkLogin();
     }
   }, [isLoading]);
 
+  // if the auth is still running or if a user is found, show nothing
+  // the layout will redirect automatically
   if (isLoading || user) {
     return null;
   }
 
   return (
     <View style={styles.container}>
+      {/* title / brand section */}
       <Text style={styles.title}>MediTracker</Text>
       <Text style={styles.subtitle}>Stay on Track. Stay Healthy</Text>
 
+      {/* navigation section */}
       <Pressable style={styles.button} onPress={() => router.push("/(auth)/login")}>
         <Text style={styles.buttonText}>Login</Text>
       </Pressable>
