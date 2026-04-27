@@ -7,11 +7,15 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 
 const connectDB = require('./config/db.js');
+
 const notFound = require('./middleware/notFound.js');
 const errorHandler = require('./middleware/errorMiddleware.js');
 const logger = require('./middleware/logger.js');
+
+const healthRoutes = require('./routes/healthRoutes.js');
 const authRoutes = require('./routes/authRoutes.js');
 const medRoutes = require('./routes/medicationRoutes.js');
+const adherenceRoutes = require('./routes/adherenceRoutes.js');
 
 // load .env file content into process.env
 dotenv.config();
@@ -26,9 +30,10 @@ app.use(express.json());
 app.use(logger);
 
 // routes
-app.use('/api/health', require('./routes/healthRoutes.js'));
+app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/medications', medRoutes);
+app.use('/api/adherence', adherenceRoutes);
 
 // error middleware
 app.use(notFound);
