@@ -40,6 +40,9 @@ export default function PatientDashboard() {
   // state of the calendar visibility
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
 
+  // state to log taken doses
+  const [takenDoses, setTakenDoses] = useState<any[]>([]);
+
   // fetch meds every time dashboard becomes the active screen
   useFocusEffect(
     useCallback(() => {
@@ -53,21 +56,66 @@ export default function PatientDashboard() {
   // fetch the current user's medication from database
   const fetchMedications = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/medications`, {
-        headers: { Authorization: `Bearer ${user?.token}` }
-      });
+      const dateStr = getLocalDateString(selectedDate);
 
-      const result = await response.json();
+      const [medRes, logRes] = await Promise.all([
+        fetch(`${BASE_URL}/api/medications`, { headers: { Authorization: `Bearer ${user?.token}` } }),
+        fetch(`${BASE_URL}/api/adherence/${dateStr}`, { headers: { Authorization: `Bearer ${user?.token}` } })
+      ]);
+
+      const medResult = await medRes.json();
+      const logResult = await logRes.json();
 
       // save medications in state if fetching is successful
-      if (result.success) {
+      if (medResult.success) {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setMedications(result.data);
+        setMedications(medResult.data);
+      }
+
+      if (logResult.success) {
+        setTakenDoses(logResult.data);
       }
     } catch (err) {
       console.error("Fetch Error:", err);
     } finally {
       setFetching(false);
+    }
+  };
+
+  const handleToggleDose = async (medId: string, time: string) => {
+    const dateStr = getLocalDateString(selectedDate);
+    const previousLogs = [...takenDoses];
+
+    setTakenDoses((current) => {
+      const exists = current.find(l => l.medication === medId && l.scheduledTime === time);
+      if (exists) {
+        return current.filter(l => l !== exists);
+      }
+      return [...current, { medication: medId, scheduledTime: time, dateString: dateStr }];
+    });
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/adherence`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          medicationId: medId,
+          dateString: dateStr,
+          scheduledTime: time,
+          status: "taken"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error();
+      }
+    }
+    catch (err) {
+      setTakenDoses(previousLogs);
+      alert("Sync failed. please check your connection.");
     }
   };
 
@@ -292,10 +340,29 @@ export default function PatientDashboard() {
                     <View style={styles.divider} />
 
                     <Text style={styles.detailLabel}>Frequency: <Text style={styles.detailValue}>{item.frequency}x daily</Text></Text>
-                    <Text style={styles.detailLabel}>All Times: <Text style={styles.detailValue}>{Array.isArray(item.times) ? item.times.join(", ") : item.times}</Text></Text>
+
+                    <Text style={[styles.detailLabel, { marginTop: 10 }]}>Track Doses:</Text>
+                    <View style={styles.checkboxGrid}>
+                      {item.times.map((time, index) => {
+                        const isTaken = takenDoses.some(log => log.medication === item._id && log.scheduledTime === time);
+
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            style={styles.checkboxRow}
+                            onPress={() => handleToggleDose(item._id, time)}
+                          >
+                            <View style={[styles.checkbox, isTaken && styles.checkboxChecked]}>
+                              {isTaken && <Text style={styles.checkMark}>✓</Text>}
+                            </View>
+                            <Text style={styles.checkboxLabel}>{time}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
 
                     {item.notes && (
-                      <Text style={styles.detailLabel}>Notes: <Text style={styles.detailValue}>{item.notes}</Text></Text>
+                      <Text style={[styles.detailLabel, { marginTop: 10 }]}>Notes: <Text style={styles.detailValue}>{item.notes}</Text></Text>
                     )}
 
                     <View style={styles.actionRow}>
@@ -545,6 +612,45 @@ const styles = StyleSheet.create({
     color: "#2563EB",
     fontWeight: "700",
     fontSize: 12,
+  },
+  checkboxGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: "#2563EB",
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: "#FFF",
+    marginRight: 6,
+  },
+  checkboxChecked: {
+    backgroundColor: "#2563EB",
+  },
+  checkMark: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#1F2937",
+    fontWeight: "600",
   },
   emptyContainer: {
     alignItems: "center",
