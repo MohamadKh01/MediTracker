@@ -40,24 +40,14 @@ export default function PatientDashboard() {
   // state of the calendar visibility
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
 
-  // fetch medication when page first load and when isLoading or user states are changed
-  useEffect(() => {
-    // check if user exists before fetching meds
-    if (isLoading || !user) {
-      return;
-    }
-
-    fetchMedications();
-  }, [isLoading, user]);
-
-  // fetch meds every time dashboard becomes the active screen (for example after "Router.back" is called in add medication page)
+  // fetch meds every time dashboard becomes the active screen
   useFocusEffect(
     useCallback(() => {
-      if (!user) {
-        return;
+      // fetch if auth isn't loading and user logged in
+      if (!isLoading && user) {
+        fetchMedications();;
       }
-      fetchMedications();
-    }, [user])
+    }, [isLoading, user])
   );
 
   // fetch the current user's medication from database
