@@ -6,6 +6,8 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
+import { scheduleAndStoreNotifications, cancelMedicationReminders } from "../../utils/notifications";
+import { getLocalDateString } from "@/utils/dates";
 
 export default function AddMedication() {
     const { user } = useAuth();
@@ -112,7 +114,6 @@ export default function AddMedication() {
         try {
             // select the corresponding URL and method depending on the action taken(create or edit medication)
             const url = isEditing ? `${BASE_URL}/api/medications/${editMed._id}` : `${BASE_URL}/api/medications`;
-
             const method = isEditing ? "PUT" : "POST";
 
             // save changes to database
@@ -122,13 +123,28 @@ export default function AddMedication() {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${user.token}`,
                 },
-                body: JSON.stringify({ name, dosage, frequency: Number(frequency), times, startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0], notes, }),
+                body: JSON.stringify({ name, dosage, frequency: Number(frequency), times, startDate: getLocalDateString(startDate), endDate: getLocalDateString(endDate), notes, }),
             });
 
             const result = await response.json();
 
-            // go back to dashboard if action is successful
+            // notification logic then go back to dashboard if action is successful
             if (response.ok) {
+                // if editing clear existing notifications for this med
+                if (isEditing) {
+                    await cancelMedicationReminders(editMed._id);
+                }
+
+                // convert string times ["8:30", "20:00"] to {hour, minute} objects
+                const formattedTimes = times.map(t => {
+                    const [hour, minute] = t.split(':').map(Number);
+                    return { hour, minute };
+                });
+
+                // schedule new notifications
+                const medId = isEditing ? editMed._id : result._id;
+                await scheduleAndStoreNotifications(medId, name, formattedTimes);
+
                 router.back();
             }
             else {

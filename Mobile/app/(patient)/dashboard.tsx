@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform, LayoutAnimation, Pressable, Modal } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform, LayoutAnimation, Pressable, Modal, DeviceEventEmitter, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Calendar } from "react-native-calendars";
+import * as Notifications from "expo-notifications";
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
+import { cancelMedicationReminders } from "../../utils/notifications";
+import { getLocalDateString } from "@/utils/dates";
 
 // blueprint, defines the structure of Medication object
 interface Medication {
@@ -43,6 +46,14 @@ export default function PatientDashboard() {
   // state to log taken doses
   const [takenDoses, setTakenDoses] = useState<any[]>([]);
 
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener("medicationTaken", () => {
+      fetchMedications();
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   // fetch meds every time dashboard becomes the active screen
   useFocusEffect(
     useCallback(() => {
@@ -50,7 +61,7 @@ export default function PatientDashboard() {
       if (!isLoading && user) {
         fetchMedications();;
       }
-    }, [isLoading, user])
+    }, [isLoading, user, selectedDate])
   );
 
   // fetch the current user's medication from database
@@ -130,30 +141,47 @@ export default function PatientDashboard() {
 
   // delete a medication form database
   const handleDelete = async (id: string) => {
-    try {
-      const url = `${BASE_URL}/api/medications/${id}`;
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-          "Content-Type": "application/json"
-        }
-      });
+    Alert.alert(
+      "Delete Medication",
+      "Are you sure you want to delete this medication? this will also cancel all reminders!",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const url = `${BASE_URL}/api/medications/${id}`;
+              const response = await fetch(url, {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${user.token}`,
+                  "Content-Type": "application/json"
+                }
+              });
 
-      // remove medication from state if deletion successful
-      if (response.ok) {
-        setMedications((prev) => prev.filter((med) => med._id !== id));
-        alert("Med deleted");
-      }
-      else {
-        const res = await response.json();
-        alert(res.message || "medication not deleted");
-      }
-    } catch (err) {
-      console.error("Fetch error: ", err);
-      alert("failed to delete");
-    }
-  }
+              // remove medication from state and remove notifications if deletion successful
+              if (response.ok) {
+                await cancelMedicationReminders(id);
+                setMedications((prev) => prev.filter((med) => med._id !== id));
+                alert("Med deleted");
+              }
+              else {
+                const res = await response.json();
+                alert(res.message || "medication not deleted");
+              }
+            } catch (err) {
+              console.error("Fetch error: ", err);
+              alert("failed to delete");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // save the id of the medication card we want to expand
   const toggleExpand = (id: string) => {
@@ -187,14 +215,6 @@ export default function PatientDashboard() {
 
     return current >= start && (!end || current <= end);
   });
-
-  // format date
-  const getLocalDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   // generate marked dates for the calendar
   const markedDates = useMemo(() => {
@@ -344,7 +364,15 @@ export default function PatientDashboard() {
                     <Text style={[styles.detailLabel, { marginTop: 10 }]}>Track Doses:</Text>
                     <View style={styles.checkboxGrid}>
                       {item.times.map((time, index) => {
-                        const isTaken = takenDoses.some(log => log.medication === item._id && log.scheduledTime === time);
+                        // check medication id, day, and time slot
+                        const isTaken = takenDoses.some(log => {
+                          const logMedId = typeof log.medication === 'object' ? log.medication._id : log.medication;
+                          const medMatch = String(logMedId) === String(item._id);
+                          const dateMatch = log.dateString === getLocalDateString(selectedDate);
+                          const timeMatch = log.scheduledTime === time;
+
+                          return medMatch && dateMatch && timeMatch;
+                        });
 
                         return (
                           <TouchableOpacity
