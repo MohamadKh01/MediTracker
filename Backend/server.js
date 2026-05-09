@@ -16,6 +16,7 @@ const healthRoutes = require('./routes/healthRoutes.js');
 const authRoutes = require('./routes/authRoutes.js');
 const medRoutes = require('./routes/medicationRoutes.js');
 const adherenceRoutes = require('./routes/adherenceRoutes.js');
+const notificationsRoutes = require('./routes/notificationsRoutes.js');
 
 // load .env file content into process.env
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/medications', medRoutes);
 app.use('/api/adherence', adherenceRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // error middleware
 app.use(notFound);

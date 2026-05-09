@@ -11,6 +11,10 @@ const NotificationSchema = new mongoose.Schema({
         ref: 'Medication',
         required: true,
     },
+    title: {
+        type: String,
+        default: "Pill reminder 💊",
+    },
     message: {
         type: String,
         required: true,
@@ -19,11 +23,23 @@ const NotificationSchema = new mongoose.Schema({
         type: Date,
         required: true,
     },
-    sent: {
-        type: Boolean,
-        default: false,
+    status: {
+        type: String,
+        enum: ['scheduled', 'sent', 'taken', 'missed', 'snoozed'],
+        default: 'scheduled',
     },
-},{
+    localNotificationId: {
+        type: String,
+    },
+    dateString: {
+        type: String,
+        required: true,
+    },
+    scheduledTime: {
+        type: String,
+        required: true,
+    },
+}, {
     timestamps: true,
 });
 
