@@ -2,7 +2,7 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-const NOTIFICATIONS_STORAGE_KEY = '@med_notification_ids';
+export const NOTIFICATIONS_STORAGE_KEY = '@med_notification_ids';
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -70,7 +70,7 @@ export async function scheduleAndStoreNotifications(medicationId: string, pillNa
                     data: {
                         medicationId: medicationId,
                         medicationName: pillName,
-                        scheduledTime: `${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}`
+                        scheduledTime: `${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}`,
                     },
                 },
                 trigger: {
@@ -89,7 +89,8 @@ export async function scheduleAndStoreNotifications(medicationId: string, pillNa
     // save the ids locally
     const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
     const storage = existingData ? JSON.parse(existingData) : {};
-    storage[medicationId] = newIds;
+    const currentMedIds = storage[medicationId] || [];
+    storage[medicationId] = [...currentMedIds, ...newIds];
     await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
 
     return newIds;

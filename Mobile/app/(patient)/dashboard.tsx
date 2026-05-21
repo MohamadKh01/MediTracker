@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform, LayoutAnimation, Pressable, Modal, DeviceEventEmitter, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Calendar } from "react-native-calendars";
 import * as Notifications from "expo-notifications";
 
@@ -45,6 +45,24 @@ export default function PatientDashboard() {
 
   // state to log taken doses
   const [takenDoses, setTakenDoses] = useState<any[]>([]);
+
+  // Read incoming navigation params
+  const { expandMedicationId } = useLocalSearchParams<{ expandMedicationId?: string }>();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (expandMedicationId) {
+        const timer = setTimeout(() => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setExpandedId(expandMedicationId);
+
+          router.setParams({ expandedMedicationId: undefined });
+        }, 100);
+
+        return () => clearTimeout(timer);
+      }
+    }, [expandMedicationId])
+  );
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener("medicationTaken", () => {
@@ -166,6 +184,12 @@ export default function PatientDashboard() {
               // remove medication from state and remove notifications if deletion successful
               if (response.ok) {
                 await cancelMedicationReminders(id);
+
+                await fetch(`${BASE_URL}/api/notifications/medication/${id}`, {
+                  method: "DELETE",
+                  headers: { Authorization: `Bearer ${user.token}` }
+                });
+
                 setMedications((prev) => prev.filter((med) => med._id !== id));
                 alert("Med deleted");
               }

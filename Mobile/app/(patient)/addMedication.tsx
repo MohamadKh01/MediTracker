@@ -133,6 +133,10 @@ export default function AddMedication() {
                 // if editing clear existing notifications for this med
                 if (isEditing) {
                     await cancelMedicationReminders(editMed._id);
+                    await fetch(`${BASE_URL}/api/notifications/medication/${editMed._id}`, {
+                        method: "DELETE",
+                        headers: { Authorization: `Bearer ${user.token}` }
+                    });
                 }
 
                 // convert string times ["8:30", "20:00"] to {hour, minute} objects
@@ -142,8 +146,35 @@ export default function AddMedication() {
                 });
 
                 // schedule new notifications
-                const medId = isEditing ? editMed._id : result._id;
-                await scheduleAndStoreNotifications(medId, name, formattedTimes);
+                const medId = isEditing ? editMed._id : (result.data?._id || result._id);
+
+                for (const time of formattedTimes) {
+                    // schedule locally and get local _id
+                    const scheduleIds = await scheduleAndStoreNotifications(medId, name, [time]);
+                    const localId = scheduleIds[0];
+
+                    // calculate the exact date for ScheduleFor
+                    const scheduledDate = new Date(startDate);
+                    scheduledDate.setHours(time.hour, time.minute, 0, 0);
+
+                    // save to mongoDB notifications model
+                    await fetch(`${BASE_URL}/api/notifications`, {
+                        method: 'POST',
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${user.token}`,
+                        },
+                        body: JSON.stringify({
+                            medication: medId,
+                            title: "Pill reminder 💊",
+                            message: `It's time to take your ${name}`,
+                            scheduledFor: getLocalDateString(scheduledDate),
+                            dateString: getLocalDateString(scheduledDate),
+                            scheduledTime: `${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}`,
+                            localNotificationId: localId
+                        }),
+                    });
+                }
 
                 router.back();
             }

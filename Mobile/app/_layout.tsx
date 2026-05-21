@@ -2,9 +2,10 @@ import { useEffect } from "react";
 import { Stack, useRouter } from "expo-router";
 import { KeyboardAvoidingView, Platform, Keyboard, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { AuthProvider, useAuth } from "@/context/authContext";
-import { registerForPushNotificationsAsync, setNotificationCategories } from "@/utils/notifications";
+import { registerForPushNotificationsAsync, setNotificationCategories, NOTIFICATIONS_STORAGE_KEY } from "@/utils/notifications";
 import { BASE_URL } from "@/constants/api";
 import { getLocalDateString } from "@/utils/dates";
 
@@ -25,6 +26,7 @@ function RootLayoutNav() {
     // listen for notification interactions
     const subscription = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const { notification } = response;
+      const notificationId = notification.request.identifier;
 
       const data = response.notification.request.content.data as {
         medicationId: string,
@@ -34,7 +36,16 @@ function RootLayoutNav() {
 
       const actionId = response.actionIdentifier;
 
-      await Notifications.dismissNotificationAsync(notification.request.identifier);
+      if (notificationId) {
+        try {
+          await Notifications.dismissNotificationAsync(notificationId);
+        } catch (err) {
+          console.warn("Could not clear notification tray item: ", err);
+        }
+      }
+
+      const dateStr = getLocalDateString(new Date());
+
       // handle mark as taken
       if (actionId === 'mark-taken') {
         if (!user?.token) {
@@ -42,8 +53,7 @@ function RootLayoutNav() {
         }
 
         try {
-          const dateStr = getLocalDateString(new Date());
-
+          //log adherence history record
           const res = await fetch(`${BASE_URL}/api/adherence`, {
             method: 'POST',
             headers: {
@@ -59,9 +69,28 @@ function RootLayoutNav() {
             })
           });
 
+          // clear out active notification from queue
+          await fetch(`${BASE_URL}/api/notifications/clear-completed`, {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${user.token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              medicationId: data.medicationId,
+              scheduledTime: data.scheduledTime,
+              dateString: dateStr
+            })
+          });
+
           if (res.ok) {
             // send signal to refresh dashboard
             DeviceEventEmitter.emit("medicationTaken");
+
+            router.push({
+              pathname: "/(patient)/dashboard",
+              params: { expandMedicationId: data.medicationId }
+            });
           }
           else {
             const errData = await res.json();
@@ -74,22 +103,51 @@ function RootLayoutNav() {
       }
 
       else if (actionId === 'snooze') {
-        const snoozeDate = new Date();
-        snoozeDate.setMinutes(snoozeDate.getMinutes() + 10);
+        if (!user?.token) {
+          return console.error("No user token found");
+        }
+        try {
+          // update database record string status field to 'snoozed'
+          await fetch(`${BASE_URL}/api/notifications/snooze`, {
+            method: "PUT",
+            headers: {
+              "Authorization": `Bearer ${user.token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              medicationId: data.medicationId,
+              scheduledTime: data.scheduledTime,
+              dateString: dateStr
+            })
+          });
 
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Snoozed Reminder 🔔",
-            body: `Don't forget: ${data.medicationName}`,
-            data,
-            categoryIdentifier: "medication-actions",
-            color: "#41a6ff"
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: snoozeDate
-          },
-        });
+          //schedule local reminder notification for 10 min
+          const snoozeDate = new Date();
+          snoozeDate.setMinutes(snoozeDate.getMinutes() + 10);
+
+          const snoozedNotificationId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Snoozed Reminder 🔔",
+              body: `Don't forget: ${data.medicationName}`,
+              data,
+              categoryIdentifier: "medication-actions",
+              color: "#41a6ff"
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: snoozeDate
+            },
+          });
+
+          const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+          const storage = existingData ? JSON.parse(existingData) : {};
+          const currentMedIds = storage[data.medicationId] || [];
+          storage[data.medicationId] = [...currentMedIds, snoozedNotificationId];
+          await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
+
+        } catch (err) {
+          console.error("Snooze background task failed: ", err);
+        }
       }
 
       else {
@@ -98,7 +156,7 @@ function RootLayoutNav() {
     });
 
     return () => subscription.remove();
-  }, [user]);
+  }, [user, router]);
 
   return (
     // KeyboardAvoidingView prevents the keyboard from covering up input fields
