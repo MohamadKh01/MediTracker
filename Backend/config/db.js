@@ -5,6 +5,11 @@ async function connectDB() {
     try {
         await mongoose.connect(process.env.MONGO_URI);
         console.log('Connected to mongoDB');
+
+        // background scheduler loop after successful connection
+        const { startMissedDoseCron } = require('../services/cronService');
+        startMissedDoseCron();
+
     } catch (err) {
         console.error('Failed to connect to mongoDB!');
         process.exit(1);
