@@ -68,7 +68,35 @@ const updateStatus = async (req, res) => {
     }
 }
 
-// Route    DELETE /api/notifications/medication/:medId
+// Route    PUT /api/notifications/snooze   private access
+const snoozeNotificationStatus = async (req, res) => {
+    try {
+        const { medicationId, scheduledTime, dateString } = req.body;
+
+        const updateNotif = await Notification.findOneAndUpdate(
+            {
+                user: req.user._id,
+                medication: medicationId,
+                scheduledTime: scheduledTime,
+                dateString: dateString,
+                status: 'scheduled'
+            },
+            { status: 'snoozed' },
+            { returnDocument: 'after', runValidators: true }
+        );
+
+        if (!updateNotif) {
+            return res.status(404).json({ message: "Matching active notification not found to snooze" });
+        }
+
+        res.status(200).json({ success: true, data: updateNotif });
+    } catch (err) {
+        console.error("failed to update snooze status: ", err);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+// Route    DELETE /api/notifications/medication/:medId     private access
 const deleteNotification = async (req, res) => {
     try {
         await Notification.deleteMany({
@@ -83,4 +111,24 @@ const deleteNotification = async (req, res) => {
     }
 }
 
-module.exports = { getAllNotifications, createNotification, updateStatus, deleteNotification };
+// Route    DELETE /api/notifications/clear-completed
+const deleteCompletedNotification = async (req, res) => {
+    try {
+        const { medicationId, scheduledTime, dateString } = req.body;
+
+        await Notification.deleteOne({
+            user: req.user._id,
+            medication: medicationId,
+            scheduledTime: scheduledTime,
+            dateString: dateString,
+            status: 'scheduled'
+        });
+
+        res.status(200).json({ success: true, message: "Pending notification cleared form queue" });
+    } catch (err) {
+        console.error("Failed to clear processe notification: ", err);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+module.exports = { getAllNotifications, createNotification, updateStatus, snoozeNotificationStatus, deleteNotification, deleteCompletedNotification };
