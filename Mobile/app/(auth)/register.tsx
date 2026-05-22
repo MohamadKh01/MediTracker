@@ -1,12 +1,14 @@
-import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
+import { View, Text, TextInput, StyleSheet, Pressable, ScrollView } from "react-native";
 import { RadioButton } from "react-native-paper";
 import { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BASE_URL } from "@/constants/api";
 import { useAuth } from "@/context/authContext";
 
 export default function Register() {
   const { isLoading, user, checkLogin, signIn } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -43,7 +45,7 @@ export default function Register() {
       await signIn(data);
     } catch (err: any) {
       setIsSubmitting(false);
-      alert(["Error: ", err.message]);
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -53,17 +55,21 @@ export default function Register() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.outerContainer}
+      contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.title}>Register</Text>
 
-      <Text>Name</Text>
+      <Text style={styles.label}>Name</Text>
       <TextInput
         style={styles.input}
         value={name}
         onChangeText={setName}
       />
 
-      <Text>Email</Text>
+      <Text style={styles.label}>Email</Text>
       <TextInput
         style={styles.input}
         value={email}
@@ -72,7 +78,7 @@ export default function Register() {
         autoCapitalize="none"
       />
 
-      <Text>Password</Text>
+      <Text style={styles.label}>Password</Text>
       <View style={styles.passwordContainer}>
         <TextInput
           style={styles.passwordInput}
@@ -89,13 +95,15 @@ export default function Register() {
         </Pressable>
       </View>
 
-      <Text>Role</Text>
-      <RadioButton.Group value={role} onValueChange={(val: string) => setRole(val)}>
-        <RadioButton.Item label="Patient" value="patient" />
-        <RadioButton.Item label="Caregiver" value="caregiver" />
-      </RadioButton.Group>
+      <Text style={styles.label}>Role</Text>
+      <View style={styles.radioWrapper}>
+        <RadioButton.Group value={role} onValueChange={(val: string) => setRole(val)}>
+          <RadioButton.Item label="Patient" value="patient" labelStyle={styles.radioLabel} color="#2563EB" />
+          <RadioButton.Item label="Caregiver" value="caregiver" labelStyle={styles.radioLabel} color="#2563EB" />
+        </RadioButton.Group>
+      </View>
 
-      <Text>Phone</Text>
+      <Text style={styles.label}>Phone</Text>
       <TextInput
         style={styles.input}
         value={phone}
@@ -103,43 +111,56 @@ export default function Register() {
         keyboardType="phone-pad"
       />
 
-      <Pressable style={[styles.button, isSubmitting && { opacity: 0.5 }]} onPress={handleRegister} disabled={isSubmitting}>
+      <Pressable style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleRegister} disabled={isSubmitting}>
         <Text style={styles.buttonText}>{isSubmitting ? "Registering..." : "Register"}</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
-    justifyContent: "flex-start",
-    paddingTop: 80,
-    padding: 20,
+    backgroundColor: "#FFFFFF"
+  },
+  scrollContent: {
+    paddingHorizontal: 20
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 24,
+    color: "#1F2937"
+  },
+  label: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 6,
+    fontWeight: "500"
   },
   input: {
     borderWidth: 1,
     borderColor: "#CCC",
     padding: 12,
-    marginBottom: 15,
+    marginBottom: 16,
     borderRadius: 6,
     backgroundColor: "#F9F9F9",
     color: "#000",
   },
   button: {
-    backgroundColor: "#1E3A8A",
+    backgroundColor: "#2563EB",
     padding: 15,
     borderRadius: 8,
     alignItems: "center",
+    marginTop: 12
+  },
+  buttonDisabled: {
+    opacity: 0.5
   },
   buttonText: {
     color: "#FFFFFF",
     fontSize: 18,
+    fontWeight: "600"
   },
   passwordContainer: {
     flexDirection: "row",
@@ -148,7 +169,7 @@ const styles = StyleSheet.create({
     borderColor: "#CCC",
     borderRadius: 6,
     backgroundColor: "#F9F9F9",
-    marginBottom: 15,
+    marginBottom: 16,
     paddingHorizontal: 10,
   },
   passwordInput: {
@@ -157,8 +178,19 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   toggleText: {
-    color: "#1E3A8A",
+    color: "#2563EB",
     fontWeight: "bold",
     paddingLeft: 10,
   },
+  radioWrapper: {
+    marginBottom: 12,
+    backgroundColor: "#F9F9F9",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E5E7EB"
+  },
+  radioLabel: {
+    fontSize: 15,
+    color: "#1F2937"
+  }
 });

@@ -31,8 +31,8 @@ export default function Welcome() {
         <Text style={styles.buttonText}>Login</Text>
       </Pressable>
 
-      <Pressable style={styles.button} onPress={() => router.push("/(auth)/register")}>
-        <Text style={styles.buttonText}>Register</Text>
+      <Pressable style={[styles.button, styles.registerButton]} onPress={() => router.push("/(auth)/register")}>
+        <Text style={[styles.buttonText, styles.registerButtonText]}>Register</Text>
       </Pressable>
     </View>
   );
@@ -44,27 +44,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#ffffff",
-    padding: 20,
+    padding: 24,
   },
   title: {
     fontSize: 26,
     fontWeight: "bold",
     marginBottom: 10,
+    color: "#2563EB"
   },
   subtitle: {
     fontSize: 16,
     marginBottom: 40,
+    color: "#4B5563"
   },
   button: {
     width: "100%",
-    backgroundColor: "#1E3A8A",
-    padding: 15,
+    backgroundColor: "#2563EB",
+    padding: 16,
     borderRadius: 8,
-    marginBottom: 15,
+    marginBottom: 14,
     alignItems: "center",
+    elevation: 2
   },
   buttonText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 16,
+    fontWeight: "600"
+  },
+  registerButton: {
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    elevation: 0,
+  },
+  registerButtonText: {
+    color: "#4B5563",
   },
 });

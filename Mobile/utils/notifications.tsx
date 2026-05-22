@@ -1,6 +1,5 @@
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Platform } from "react-native";
 
 export const NOTIFICATIONS_STORAGE_KEY = '@med_notification_ids';
 
@@ -27,15 +26,14 @@ export async function registerForPushNotificationsAsync() {
         return false;
     }
 
-    if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('medication-reminders', {
-            name: 'Medication Reminders',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: "#FF231F7C",
-            showBadge: true,
-        });
-    }
+    await Notifications.setNotificationChannelAsync('medication-reminders', {
+        name: 'Medication Reminders',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#FF231F7C",
+        showBadge: true,
+    });
+
     return true;
 }
 
@@ -59,6 +57,8 @@ export async function setNotificationCategories() {
 export async function scheduleAndStoreNotifications(medicationId: string, pillName: string, times: { hour: number, minute: number }[]) {
     const newIds: string[] = [];
 
+    await registerForPushNotificationsAsync();
+
     for (const time of times) {
         try {
             const id = await Notifications.scheduleNotificationAsync({
@@ -66,7 +66,7 @@ export async function scheduleAndStoreNotifications(medicationId: string, pillNa
                     title: "Pill Reminder 💊",
                     body: `It's time to take your ${pillName}.`,
                     categoryIdentifier: 'medication-actions',
-                    color: "#41a6ff",
+                    color: "#2563EB",
                     data: {
                         medicationId: medicationId,
                         medicationName: pillName,
@@ -87,30 +87,37 @@ export async function scheduleAndStoreNotifications(medicationId: string, pillNa
     }
 
     // save the ids locally
-    const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-    const storage = existingData ? JSON.parse(existingData) : {};
-    const currentMedIds = storage[medicationId] || [];
-    storage[medicationId] = [...currentMedIds, ...newIds];
-    await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
-
+    try {
+        const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+        const storage = existingData ? JSON.parse(existingData) : {};
+        const currentMedIds = storage[medicationId] || [];
+        storage[medicationId] = [...currentMedIds, ...newIds];
+        await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
+    } catch (err) {
+        console.error("failed to update notification storage registry mapping context: ", err);
+    }
     return newIds;
 }
 
 // cancel specific reminders
 export async function cancelMedicationReminders(medicationId: string) {
-    const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-    if (!existingData) {
-        return;
-    }
-
-    const storage = JSON.parse(existingData);
-    const idsToCancel = storage[medicationId];
-
-    if (idsToCancel) {
-        for (const id of idsToCancel) {
-            await Notifications.cancelScheduledNotificationAsync(id);
+    try {
+        const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+        if (!existingData) {
+            return;
         }
-        delete storage[medicationId];
-        await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
+
+        const storage = JSON.parse(existingData);
+        const idsToCancel = storage[medicationId];
+
+        if (idsToCancel && Array.isArray(idsToCancel)) {
+            for (const id of idsToCancel) {
+                await Notifications.cancelScheduledNotificationAsync(id);
+            }
+            delete storage[medicationId];
+            await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
+        }
+    } catch (err) {
+        console.error("Error executing cancellation logic routing parameters: ", err);
     }
 }

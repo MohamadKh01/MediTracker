@@ -2,66 +2,87 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// structure of user
+interface User {
+    _id: string;
+    name: string;
+    email: string;
+    role: 'patient' | 'caregiver';
+    token: string;
+    phone?: string;
+}
+
 // structure of authContext
 const AuthContext = createContext<{
-    user: any;
+    user: User | null;
     isLoading: boolean;
-    signIn: (data: any) => void;
+    signIn: (data: User) => void;
     signOut: () => void;
-    authenticate: (group: any) => void;
+    authenticate: (group: 'patient' | 'caregiver') => void;
     checkLogin: () => void;
 } | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const [user, setUser] = useState<any>(null);
+    const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     // run only once when app starts, check if user data is saved in phone's local storage
     useEffect(() => {
         const loadStorage = async () => {
-            const info = await AsyncStorage.getItem("userInfo");
+            try {
+                const info = await AsyncStorage.getItem("userInfo");
 
-            if (info) {
-                try {
+                if (info) {
                     // save user data in state if they exist
                     setUser(JSON.parse(info));
-                } catch (err) {
-                    console.error("failed to parse user info: ", err);
-                    // clean local storage if data is corrupted
-                    AsyncStorage.removeItem("userInfo");
                 }
+            } catch (err) {
+                console.error("failed to parse user info: ", err);
+                // clean local storage if data is corrupted
+                await AsyncStorage.removeItem("userInfo");
+            } finally {
+                setIsLoading(false);
             }
-
-            setIsLoading(false);
         };
         loadStorage();
     }, []);
 
-    const signIn = async (data: any) => {
-        // save user data in state and in local storage
-        setUser(data);
-        await AsyncStorage.setItem("userInfo", JSON.stringify(data));
+    const signIn = async (data: User) => {
+        try {
+            // save user data in state and in local storage
+            setUser(data);
+            await AsyncStorage.setItem("userInfo", JSON.stringify(data));
 
-        // redirect based on role
-        if (data.role === "patient") {
-            router.replace("/(patient)/dashboard");
-        }
-        else if (data.role === "caregiver") {
-            router.replace("/(caregiver)/dashboard");
+            // redirect based on role
+            if (data.role === "patient") {
+                router.replace("/(patient)/dashboard");
+            }
+            else if (data.role === "caregiver") {
+                router.replace("/(caregiver)/dashboard");
+            }
+        } catch (err) {
+            console.error("Sign in storage error: ", err);
+            alert("Failed to securely save login session");
         }
     };
 
     const signOut = async () => {
-        //clear user data from state and local storage
-        setUser(null);
-        await AsyncStorage.removeItem("userInfo");
-        await AsyncStorage.removeItem("userToken");
+        try {
+            //clear user data from state and local storage
+            setUser(null);
+            await Promise.all([
+                AsyncStorage.removeItem("userInfo"),
+                AsyncStorage.removeItem("userToken")
+            ]);
 
-        //redirect to index page
-        router.replace("/");
+            //redirect to index page
+            router.replace("/");
+        } catch (err) {
+            console.error("Sign out storage error: ", err);
+        }
     };
 
-    const authenticate = async (group: any) => {
+    const authenticate = async (group: 'patient' | 'caregiver') => {
         // return to index if user doesn't exist
         if (!user) {
             return router.replace("/");
@@ -70,14 +91,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // if user accessed a page for a different role, log him out
         if (group !== user.role) {
             alert("Unauthorized access!! you are being logged out!!");
-            signOut();
+            await signOut();
         }
-    }
+    };
 
     // used by auth screens to auto redirect user if they are already logged in
     const checkLogin = async () => {
         if (user) {
-
             // clear navigation history to prevent user from going back to auth screens
             if (router.canDismiss()) {
                 router.dismissAll();
@@ -92,10 +112,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
             else {
                 alert("Unknown user role! you are being logged out!");
-                router.replace("/");
+                await signOut();
             }
         }
-    }
+    };
 
     return (
         <AuthContext.Provider value={{ user, isLoading, signIn, signOut, authenticate, checkLogin }}>
@@ -106,4 +126,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 // ! at the end is added to prevent error on next page
 // it tells the compiler: "i know this value is not null so don't throw a type error"
-export const useAuth = () => useContext(AuthContext)!;
+export const useAuth = () => {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error("useAuth must be used within an AuthProvider");
+    }
+    return context;
+}

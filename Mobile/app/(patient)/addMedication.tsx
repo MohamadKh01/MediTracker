@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Platform, Pressable, Keyboard } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Pressable, Keyboard, ScrollView } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker"
@@ -19,6 +19,7 @@ export default function AddMedication() {
     const editMed = useMemo(() => {
         return params.medication ? JSON.parse(params.medication as string) : null;
     }, [params.medication]);
+
     const isEditing = !!editMed;
 
     const [name, setName] = useState("");
@@ -26,7 +27,6 @@ export default function AddMedication() {
     const [frequency, setFrequency] = useState("");
 
     const [times, setTimes] = useState<string[]>([]);
-    const [tempTime, setTempTime] = useState(new Date());
     const [showTimePicker, setShowTimePicker] = useState(false);
 
     const [startDate, setStartDate] = useState(new Date());
@@ -52,16 +52,9 @@ export default function AddMedication() {
 
     //
     const handleTimeChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-        if (Platform.OS === "android") {
-            setShowTimePicker(false);
-            if (selectedDate) {
-                addTimeToGrid(selectedDate);
-            }
-        }
-        else {
-            if (selectedDate) {
-                setTempTime(selectedDate);
-            }
+        setShowTimePicker(false);
+        if (selectedDate) {
+            addTimeToGrid(selectedDate);
         }
     }
 
@@ -87,7 +80,6 @@ export default function AddMedication() {
         setShowStartDatePicker(false);
         if (selectedDate) {
             setStartDate(selectedDate);
-
             // start date can't be higher than end date
             if (selectedDate > endDate) {
                 setEndDate(selectedDate)
@@ -111,6 +103,11 @@ export default function AddMedication() {
 
     // create or edit a new medication
     const handleAddMedication = async () => {
+        if (!name || !dosage || !frequency || times.length === 0) {
+            alert("Please fill in all required configuration values.");
+            return;
+        }
+
         try {
             // select the corresponding URL and method depending on the action taken(create or edit medication)
             const url = isEditing ? `${BASE_URL}/api/medications/${editMed._id}` : `${BASE_URL}/api/medications`;
@@ -121,7 +118,7 @@ export default function AddMedication() {
                 method: method,
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${user.token}`,
+                    Authorization: `Bearer ${user?.token}`,
                 },
                 body: JSON.stringify({ name, dosage, frequency: Number(frequency), times, startDate: getLocalDateString(startDate), endDate: getLocalDateString(endDate), notes, }),
             });
@@ -135,7 +132,7 @@ export default function AddMedication() {
                     await cancelMedicationReminders(editMed._id);
                     await fetch(`${BASE_URL}/api/notifications/medication/${editMed._id}`, {
                         method: "DELETE",
-                        headers: { Authorization: `Bearer ${user.token}` }
+                        headers: { Authorization: `Bearer ${user?.token}` }
                     });
                 }
 
@@ -162,7 +159,7 @@ export default function AddMedication() {
                         method: 'POST',
                         headers: {
                             "Content-Type": "application/json",
-                            Authorization: `Bearer ${user.token}`,
+                            Authorization: `Bearer ${user?.token}`,
                         },
                         body: JSON.stringify({
                             medication: medId,
@@ -188,25 +185,23 @@ export default function AddMedication() {
 
     // clear inputs when clicking cancel button
     const handleCancel = () => {
-        setName("");
-        setDosage("");
-        setFrequency("");
-        setTimes([]);
-        setStartDate(new Date());
-        setEndDate(new Date());
-        setNotes("");
         router.back();
     }
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 30 }]}
+            keyboardShouldPersistTaps="handled"
+        >
             {/* page title depending on action taken (create or edit medication) */}
             <Text style={styles.title}>{isEditing ? "Edit Medication" : "Add Medication"}</Text>
 
+            <Text style={styles.label}>Medication Details</Text>
             {/* form inputs */}
             <TextInput
                 placeholder="Medication name"
-                placeholderTextColor="#7d7c7c"
+                placeholderTextColor="#9CA3AF"
                 value={name}
                 onChangeText={setName}
                 style={styles.input}
@@ -214,7 +209,7 @@ export default function AddMedication() {
 
             <TextInput
                 placeholder="Dosage (e.g. 50mg)"
-                placeholderTextColor="#7d7c7c"
+                placeholderTextColor="#9CA3AF"
                 value={dosage}
                 onChangeText={setDosage}
                 style={styles.input}
@@ -222,7 +217,7 @@ export default function AddMedication() {
 
             <TextInput
                 placeholder="Frequency (times per day)"
-                placeholderTextColor="#7d7c7c"
+                placeholderTextColor="#9CA3AF"
                 value={frequency}
                 onChangeText={setFrequency}
                 keyboardType="numeric"
@@ -234,7 +229,7 @@ export default function AddMedication() {
                 {times.map((time) => (
                     // times element with delete button
                     <TouchableOpacity key={time} style={styles.timeChip} onPress={() => removeTime(time)}>
-                        <Text style={styles.timeChipText}>{time}  x</Text>
+                        <Text style={styles.timeChipText}>{time}  ✕</Text>
                     </TouchableOpacity>
                 ))}
 
@@ -246,74 +241,49 @@ export default function AddMedication() {
 
             {/* timePicker to fill times array */}
             {showTimePicker && (
-                Platform.OS === "ios" ? (
-                    <View style={styles.iosModalWrapper}>
-                        <View style={styles.iosModalContent}>
-                            <View style={styles.iosModalHeader}>
-                                <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                                    <Text style={{ color: 'red' }}>Cancel</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => {
-                                    addTimeToGrid(tempTime);
-                                    setShowTimePicker(false);
-                                }}>
-                                    <Text style={{ color: "#2563EB", fontWeight: "bold" }}>Confirm</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <DateTimePicker
-                                value={tempTime}
-                                mode="time"
-                                is24Hour={true}
-                                display="spinner"
-                                onChange={handleTimeChange}
-                                textColor="#000000"
-                                themeVariant="light"
-                            />
-                        </View>
-                    </View>
-                ) : (
-                    <DateTimePicker
-                        value={new Date()}
-                        mode="time"
-                        is24Hour={true}
-                        display="default"
-                        onChange={handleTimeChange}
-                    />
-                )
+                <DateTimePicker
+                    value={new Date()}
+                    mode="time"
+                    is24Hour={true}
+                    display="default"
+                    onChange={handleTimeChange}
+                />
             )}
 
             <Text style={styles.label}>Start Date</Text>
-            <Pressable style={styles.input} onPress={() => setShowStartDatePicker(true)}>
-                <Text style={{ color: "#000" }}>{startDate.toLocaleDateString()}</Text>
+            <Pressable style={styles.dateSelectorBox} onPress={() => setShowStartDatePicker(true)}>
+                <Text style={styles.dateSelectorText}>{getLocalDateString(startDate)}</Text>
             </Pressable>
 
             {/* time picker for start date */}
             {showStartDatePicker && (
-                <DateTimePicker style={{ marginBottom: 10 }} value={startDate} mode="date" onChange={handleStartDateChange} />
+                <DateTimePicker value={startDate} mode="date" onChange={handleStartDateChange} />
             )}
 
             <Text style={styles.label}>End Date</Text>
-            <Pressable style={styles.input} onPress={() => setShowEndDatePicker(true)}>
-                <Text style={{ color: "#000" }}>{endDate.toLocaleDateString()}</Text>
+            <Pressable style={styles.dateSelectorBox} onPress={() => setShowEndDatePicker(true)}>
+                <Text style={styles.dateSelectorText}>{getLocalDateString(endDate)}</Text>
             </Pressable>
 
             {/* time picker for end date */}
             {showEndDatePicker && (
-                <DateTimePicker style={{ marginBottom: 10 }} value={endDate} mode="date" minimumDate={startDate} onChange={handleEndDateChange} />
+                <DateTimePicker value={endDate} mode="date" minimumDate={startDate} onChange={handleEndDateChange} />
             )}
 
+            <Text style={styles.label}>Notes</Text>
             <TextInput
-                placeholder="Notes"
-                placeholderTextColor="#7d7c7c"
+                placeholder="Special notes or instructions (optional)"
+                placeholderTextColor="#9CA3AF"
                 value={notes}
                 onChangeText={setNotes}
-                style={styles.input}
+                style={[styles.input, styles.textArea]}
+                numberOfLines={3}
             />
 
             <View style={styles.buttonContainer}>
                 {/* save button */}
                 <TouchableOpacity style={styles.addButton} onPress={handleAddMedication}>
-                    <Text style={styles.addButtonText}>{isEditing ? "Edit Medication" : "Add Medication"}</Text>
+                    <Text style={styles.addButtonText}>{isEditing ? "Save Changes" : "Create Schedule"}</Text>
                 </TouchableOpacity>
 
                 {/* cancel button */}
@@ -321,49 +291,68 @@ export default function AddMedication() {
                     <Text style={styles.cancelButtonText}>cancel</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
         backgroundColor: "#F9FAFB"
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
     },
     title: {
         fontSize: 22,
         fontWeight: "bold",
-        marginBottom: 20
+        marginBottom: 20,
+        color: "#1F2937"
     },
     input: {
         backgroundColor: "#FFF",
         padding: 12,
         borderRadius: 8,
-        marginBottom: 12,
+        marginBottom: 14,
         borderWidth: 1,
-        borderColor: "#E5E7EB"
+        borderColor: "#E5E7EB",
+        color: "#000"
+    },
+    textArea: {
+        height: 80,
+        textAlignVertical: "top",
     },
     label: {
         fontSize: 14,
         color: "#4B5563",
-        marginBottom: 4,
-        marginLeft: 4,
+        marginBottom: 6,
+        marginLeft: 2,
+        fontWeight: "600",
     },
-
+    dateSelectorBox: {
+        backgroundColor: "#FFFFFF",
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 14,
+        borderWidth: 1,
+        borderColor: "#E5E7EB",
+    },
+    dateSelectorText: {
+        color: "#1F2937",
+        fontSize: 15,
+    },
     timesContainer: {
         flexDirection: "row",
         flexWrap: "wrap",
         gap: 8,
-        marginBottom: 12,
+        marginBottom: 14,
+        alignItems: "center"
     },
     timeChip: {
         backgroundColor: "#E5E7EB",
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
-        flexDirection: "row",
-        alignItems: "center",
     },
     timeChipText: {
         color: "#374151",
@@ -381,36 +370,10 @@ const styles = StyleSheet.create({
         color: "#2563EB",
         fontWeight: "bold",
     },
-    iosModalWrapper: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        top: 0,
-        justifyContent: "flex-end",
-        zIndex: 1000,
-    },
-    iosModalContent: {
-        backgroundColor: "#FFF",
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 40,
-        alignItems: "center",
-        justifyContent: "center"
-    },
-    iosModalHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: "#EEE",
-        width: "100%",
-    },
     buttonContainer: {
         flexDirection: "row",
         gap: 12,
-        marginTop: 20
+        marginTop: 10
     },
     addButton: {
         flex: 1,
@@ -418,11 +381,13 @@ const styles = StyleSheet.create({
         padding: 14,
         borderRadius: 8,
         alignItems: "center",
-        justifyContent: "center"
+        justifyContent: "center",
+        elevation: 2,
     },
     addButtonText: {
         color: "#FFF",
-        fontWeight: "bold"
+        fontWeight: "bold",
+        fontSize: 15
     },
     cancelButton: {
         flex: 1,
@@ -435,6 +400,7 @@ const styles = StyleSheet.create({
     },
     cancelButtonText: {
         color: "#4B5563",
-        fontWeight: "bold"
+        fontWeight: "bold",
+        fontSize: 15
     }
 });

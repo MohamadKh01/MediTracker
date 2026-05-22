@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Platform, LayoutAnimation, Pressable, Modal, DeviceEventEmitter, Alert } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, ActivityIndicator, Pressable, Modal, DeviceEventEmitter, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Calendar } from "react-native-calendars";
-import * as Notifications from "expo-notifications";
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
 import { cancelMedicationReminders } from "../../utils/notifications";
 import { getLocalDateString } from "@/utils/dates";
+import Header from '../../components/Header';
 
-// blueprint, defines the structure of Medication object
+// structure of Medication object
 interface Medication {
   _id: string;
   name: string;
@@ -24,25 +24,18 @@ interface Medication {
 
 export default function PatientDashboard() {
   const { user, isLoading, signOut } = useAuth();
-
-  // margin top under iphone dynamic island
   const insets = useSafeAreaInsets();
 
   // medications of the current user
   const [medications, setMedications] = useState<Medication[]>([]);
-
   // boolean for "are we still getting medications from database?"
   const [fetching, setFetching] = useState(true);
-
   // current day for which we are showing meds on dashboard
   const [selectedDate, setSelectedDate] = useState(new Date());
-
   // med id of the expanded card
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
   // state of the calendar visibility
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
-
   // state to log taken doses
   const [takenDoses, setTakenDoses] = useState<any[]>([]);
 
@@ -53,12 +46,9 @@ export default function PatientDashboard() {
     useCallback(() => {
       if (expandMedicationId) {
         const timer = setTimeout(() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setExpandedId(expandMedicationId);
-
           router.setParams({ expandedMedicationId: undefined });
         }, 100);
-
         return () => clearTimeout(timer);
       }
     }, [expandMedicationId])
@@ -68,14 +58,12 @@ export default function PatientDashboard() {
     const subscription = DeviceEventEmitter.addListener("medicationTaken", () => {
       fetchMedications();
     });
-
     return () => subscription.remove();
-  }, []);
+  }, [selectedDate]);
 
   // fetch meds every time dashboard becomes the active screen
   useFocusEffect(
     useCallback(() => {
-      // fetch if auth isn't loading and user logged in
       if (!isLoading && user) {
         fetchMedications();;
       }
@@ -97,7 +85,6 @@ export default function PatientDashboard() {
 
       // save medications in state if fetching is successful
       if (medResult.success) {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setMedications(medResult.data);
       }
 
@@ -127,7 +114,7 @@ export default function PatientDashboard() {
       const response = await fetch(`${BASE_URL}/api/adherence`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${user.token}`,
+          Authorization: `Bearer ${user?.token}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({
@@ -148,15 +135,6 @@ export default function PatientDashboard() {
     }
   };
 
-  // show a blank page with loader icon if user doesn't exist or user role is not a patient
-  if (isLoading || !user || user.role !== "patient") {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
-  }
-
   // delete a medication form database
   const handleDelete = async (id: string) => {
     Alert.alert(
@@ -176,7 +154,7 @@ export default function PatientDashboard() {
               const response = await fetch(url, {
                 method: "DELETE",
                 headers: {
-                  Authorization: `Bearer ${user.token}`,
+                  Authorization: `Bearer ${user?.token}`,
                   "Content-Type": "application/json"
                 }
               });
@@ -184,12 +162,10 @@ export default function PatientDashboard() {
               // remove medication from state and remove notifications if deletion successful
               if (response.ok) {
                 await cancelMedicationReminders(id);
-
                 await fetch(`${BASE_URL}/api/notifications/medication/${id}`, {
                   method: "DELETE",
-                  headers: { Authorization: `Bearer ${user.token}` }
+                  headers: { Authorization: `Bearer ${user?.token}` }
                 });
-
                 setMedications((prev) => prev.filter((med) => med._id !== id));
                 alert("Med deleted");
               }
@@ -209,13 +185,11 @@ export default function PatientDashboard() {
 
   // save the id of the medication card we want to expand
   const toggleExpand = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedId(expandedId === id ? null : id);
   }
 
   // Helper to shift date
   const changeDate = (days: number) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const newDate = new Date(selectedDate);
     newDate.setDate(selectedDate.getDate() + days);
     setSelectedDate(newDate);
@@ -223,20 +197,18 @@ export default function PatientDashboard() {
 
   // Filter medication for the selected day
   const filterMedications = medications.filter(med => {
-    // break if medication have no start date
     if (!med.startDate) {
       return false;
     }
+
     const start = new Date(med.startDate);
     const end = med.endDate ? new Date(med.endDate) : null;
-
     const current = new Date(selectedDate);
     current.setHours(0, 0, 0, 0);
     start.setHours(0, 0, 0, 0);
     if (end) {
       end.setHours(0, 0, 0, 0);
     }
-
     return current >= start && (!end || current <= end);
   });
 
@@ -276,32 +248,24 @@ export default function PatientDashboard() {
     return marks;
   }, [medications, selectedDate]);
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* HEADER */}
-      <View style={styles.header}>
-        {/* title */}
-        <Text style={styles.brand}>MediTracker</Text>
-
-        {/* profile name, role and photo */}
-        <TouchableOpacity style={styles.userSection} onPress={() => signOut()}>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user.name || "User"}</Text>
-            <Text style={styles.userRole}>{user.role}</Text>
-          </View>
-          <View style={styles.profilePic}>
-            <Text style={styles.profileLetter}>
-              {user.name ? user.name.charAt(0).toUpperCase() : "U"}
-            </Text>
-          </View>
-        </TouchableOpacity>
+  // show a blank page with loader icon if user doesn't exist or user role is not a patient
+  if (isLoading || !user || user.role !== "patient") {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      {/* Header */}
+      <Header user={user} signOut={signOut} />
 
       {/* BODY */}
       <View style={styles.body}>
-
         {/* Date selector */}
         <View style={styles.dateSelector}>
           {/* previous day button */}
@@ -312,7 +276,7 @@ export default function PatientDashboard() {
           {/* current day, show calendar when clicked */}
           <Pressable onPress={() => setIsCalendarVisible(true)} style={styles.dateInfo}>
             <Text style={styles.dateTitle}>{selectedDate.toDateString() === new Date().toDateString() ? "Today" : selectedDate.toLocaleDateString('en-US', { weekday: "long" })}</Text>
-            <Text style={styles.dateSubtitle}>{selectedDate.toLocaleDateString()} ▾</Text>
+            <Text style={styles.dateSubtitle}>{getLocalDateString(selectedDate)} ▾</Text>
           </Pressable>
 
           {/* next day button */}
@@ -322,7 +286,12 @@ export default function PatientDashboard() {
         </View>
 
         {/* Calendar */}
-        <Modal visible={isCalendarVisible} animationType="none" transparent={true}>
+        <Modal
+          visible={isCalendarVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setIsCalendarVisible(false)}
+        >
           <View style={styles.modalOverlay}>
             <Pressable style={styles.contentCloser} onPress={() => setIsCalendarVisible(false)} />
             <View style={styles.calendarContainer}>
@@ -354,10 +323,10 @@ export default function PatientDashboard() {
 
         {fetching ? (
           // loader icon if medications not ready
-          <ActivityIndicator color="#2196F3" />
+          <ActivityIndicator color="#2563EB" />
         ) : (
           // list showing medication cards
-          <FlatList data={filterMedications} keyExtractor={(item) => item._id} renderItem={({ item }) => {
+          <FlatList data={filterMedications} keyExtractor={(item) => item._id} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }} renderItem={({ item }) => {
             // boolean to check if the current medication is the one we want to expand
             const isExpanded = expandedId === item._id;
 
@@ -387,7 +356,7 @@ export default function PatientDashboard() {
 
                     <Text style={[styles.detailLabel, { marginTop: 10 }]}>Track Doses:</Text>
                     <View style={styles.checkboxGrid}>
-                      {item.times.map((time, index) => {
+                      {item.times.map((time) => {
                         // check medication id, day, and time slot
                         const isTaken = takenDoses.some(log => {
                           const logMedId = typeof log.medication === 'object' ? log.medication._id : log.medication;
@@ -400,7 +369,7 @@ export default function PatientDashboard() {
 
                         return (
                           <TouchableOpacity
-                            key={index}
+                            key={time}
                             style={styles.checkboxRow}
                             onPress={() => handleToggleDose(item._id, time)}
                           >
@@ -452,7 +421,7 @@ export default function PatientDashboard() {
       </View>
 
       {/* FAB */}
-      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={() => router.push("/(patient)/addMedication")}>
+      <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 16 }]} onPress={() => router.push("/(patient)/addMedication")}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
     </View>
@@ -470,58 +439,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // HEADER
-  header: {
-    paddingTop: Platform.OS === "android" ? 40 : 10,
-    height: 100,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  brand: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#2563EB",
-  },
-  userSection: {
-    flexDirection: "row",
-    alignItems: "center"
-  },
-  userInfo: {
-    marginRight: 12,
-    alignItems: "flex-end",
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-  userRole: {
-    fontSize: 12,
-    color: "#6B7280",
-    textTransform: "capitalize",
-  },
-  profilePic: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2563EB",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profileLetter: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
-  },
-
   //BODY
   body: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
 
   // selected day section
@@ -535,6 +457,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "#F3F4F6",
+    elevation: 2,
   },
   dateNavButton: {
     width: 40,
@@ -572,15 +495,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   calendarContainer: {
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 40,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 10,
+    paddingBottom: 30,
+    elevation: 12,
   },
   modalHeader: {
     flexDirection: "row",
@@ -613,10 +532,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F3F4F6",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    overflow: 'hidden',
   },
   expandedCard: {
     borderColor: "#2563EB",
@@ -688,14 +603,14 @@ const styles = StyleSheet.create({
     borderColor: "#2563EB",
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     marginRight: 6,
   },
   checkboxChecked: {
     backgroundColor: "#2563EB",
   },
   checkMark: {
-    color: "#FFF",
+    color: "#FFFFFF",
     fontSize: 12,
     fontWeight: "bold",
   },
@@ -745,7 +660,6 @@ const styles = StyleSheet.create({
   //FAB
   fab: {
     position: "absolute",
-    bottom: 30,
     right: 24,
     backgroundColor: "#2563EB",
     width: 56,
@@ -753,10 +667,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 4
+    elevation: 6,
   },
   fabText: {
     color: "#FFFFFF",

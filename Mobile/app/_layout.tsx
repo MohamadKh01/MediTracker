@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Stack, useRouter } from "expo-router";
-import { KeyboardAvoidingView, Platform, Keyboard, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
+import { KeyboardAvoidingView, Keyboard, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -12,8 +12,6 @@ import { getLocalDateString } from "@/utils/dates";
 function RootLayoutNav() {
   const { user } = useAuth();
   const router = useRouter();
-
-  const lastResponse = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
     // initiate notification settings
@@ -48,7 +46,19 @@ function RootLayoutNav() {
 
       // handle mark as taken
       if (actionId === 'mark-taken') {
-        if (!user?.token) {
+        let token = user?.token;
+        let userId = user?._id;
+
+        if (!token) {
+          const storedInfo = await AsyncStorage.getItem("userInfo");
+          if (storedInfo) {
+            const parsed = JSON.parse(storedInfo);
+            token = parsed.token;
+            userId = parsed._id;
+          }
+        }
+
+        if (!token) {
           return console.error("No user token found!");
         }
 
@@ -57,11 +67,11 @@ function RootLayoutNav() {
           const res = await fetch(`${BASE_URL}/api/adherence`, {
             method: 'POST',
             headers: {
-              "Authorization": `Bearer ${user.token}`,
+              "Authorization": `Bearer ${token}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              user: user._id,
+              user: userId,
               medicationId: data.medicationId,
               dateString: dateStr,
               scheduledTime: data.scheduledTime,
@@ -73,7 +83,7 @@ function RootLayoutNav() {
           await fetch(`${BASE_URL}/api/notifications/clear-completed`, {
             method: "DELETE",
             headers: {
-              "Authorization": `Bearer ${user.token}`,
+              "Authorization": `Bearer ${token}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -86,7 +96,6 @@ function RootLayoutNav() {
           if (res.ok) {
             // send signal to refresh dashboard
             DeviceEventEmitter.emit("medicationTaken");
-
             router.push({
               pathname: "/(patient)/dashboard",
               params: { expandMedicationId: data.medicationId }
@@ -96,14 +105,22 @@ function RootLayoutNav() {
             const errData = await res.json();
             console.error("server Error:", errData);
           }
-
         } catch (err) {
           console.error("Background sync failed:", err);
         }
       }
 
       else if (actionId === 'snooze') {
-        if (!user?.token) {
+        let token = user?.token;
+
+        if (!token) {
+          const storedInfo = await AsyncStorage.getItem("userInfo");
+          if (storedInfo) {
+            token = JSON.parse(storedInfo).token;
+          }
+        }
+
+        if (!token) {
           return console.error("No user token found");
         }
         try {
@@ -111,7 +128,7 @@ function RootLayoutNav() {
           await fetch(`${BASE_URL}/api/notifications/snooze`, {
             method: "PUT",
             headers: {
-              "Authorization": `Bearer ${user.token}`,
+              "Authorization": `Bearer ${token}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
@@ -131,11 +148,11 @@ function RootLayoutNav() {
               body: `Don't forget: ${data.medicationName}`,
               data,
               categoryIdentifier: "medication-actions",
-              color: "#41a6ff"
+              color: "#2563EB"
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: snoozeDate
+              date: snoozeDate.getTime()
             },
           });
 
@@ -144,12 +161,10 @@ function RootLayoutNav() {
           const currentMedIds = storage[data.medicationId] || [];
           storage[data.medicationId] = [...currentMedIds, snoozedNotificationId];
           await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
-
         } catch (err) {
           console.error("Snooze background task failed: ", err);
         }
       }
-
       else {
         router.push("/(patient)/dashboard");
       }
@@ -161,7 +176,7 @@ function RootLayoutNav() {
   return (
     // KeyboardAvoidingView prevents the keyboard from covering up input fields
     // it pushes the UI up when the keyboard opens
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20} >
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
       {/* this pressable covers the entire screen, dismiss keyboard when user taps outside a text input */}
       <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
       {/* manage navigation between screens */}

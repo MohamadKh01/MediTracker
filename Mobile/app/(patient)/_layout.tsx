@@ -1,5 +1,5 @@
 import { Stack, Redirect } from "expo-router";
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet } from "react-native";
 
 import { useAuth } from "@/context/authContext";
 
@@ -24,7 +24,7 @@ export default function PatientLayout() {
     return (
         // KeyboardAvoidingView prevents the keyboard from covering up input fields
         // it pushes the UI up when the keyboard opens
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20} >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
             {/* this pressable covers the entire screen, dismiss keyboard when user taps outside a text input */}
             <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
             {/* manage navigation between screens */}

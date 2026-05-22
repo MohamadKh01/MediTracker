@@ -1,11 +1,13 @@
 import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
 import { useEffect, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/authContext";
 import { BASE_URL } from "@/constants/api";
 
 export default function Login() {
   const { isLoading, user, signIn, checkLogin } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +41,7 @@ export default function Login() {
       await signIn(data);
     } catch (err: any) {
       setIsSubmitting(false);
-      alert(["Error: ", err.message]);
+      alert(`Error: ${err.message}`);
     }
   };
 
@@ -49,10 +51,10 @@ export default function Login() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 40 }]}>
       <Text style={styles.title}>Login</Text>
 
-      <Text>Email</Text>
+      <Text style={styles.label}>Email</Text>
       <TextInput
         style={styles.input}
         value={email}
@@ -61,7 +63,7 @@ export default function Login() {
         autoCapitalize="none"
       />
 
-      <Text>Password</Text>
+      <Text style={styles.label}>Password</Text>
       <View style={styles.passwordContainer}>
         <TextInput
           style={styles.passwordInput}
@@ -78,7 +80,7 @@ export default function Login() {
         </Pressable>
       </View>
 
-      <Pressable style={[styles.button, isSubmitting && { opacity: 0.5 }]} onPress={handleLogin} disabled={isSubmitting}>
+      <Pressable style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={handleLogin} disabled={isSubmitting}>
         <Text style={styles.buttonText}>{isSubmitting ? "Logging in..." : "Login"}</Text>
       </Pressable>
     </View>
@@ -89,32 +91,44 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "flex-start",
-    paddingTop: 80,
-    padding: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "#FFFFFF"
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 24,
+    color: "#1F2937"
+  },
+  label: {
+    fontSize: 14,
+    color: "#4B5563",
+    marginBottom: 6,
+    fontWeight: "500",
   },
   input: {
     borderWidth: 1,
     borderColor: "#CCC",
     padding: 12,
-    marginBottom: 15,
+    marginBottom: 16,
     borderRadius: 6,
     backgroundColor: "#F9F9F9",
     color: "#000",
   },
   button: {
-    backgroundColor: "#1E3A8A",
+    backgroundColor: "#2563EB",
     padding: 15,
     borderRadius: 8,
     alignItems: "center",
+    marginTop: 8
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonText: {
     color: "#FFFFFF",
     fontSize: 18,
+    fontWeight: "600"
   },
   passwordContainer: {
     flexDirection: "row",
@@ -123,7 +137,7 @@ const styles = StyleSheet.create({
     borderColor: "#CCC",
     borderRadius: 6,
     backgroundColor: "#F9F9F9",
-    marginBottom: 15,
+    marginBottom: 20,
     paddingHorizontal: 10,
   },
   passwordInput: {
@@ -132,7 +146,7 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   toggleText: {
-    color: "#1E3A8A",
+    color: "#2563EB",
     fontWeight: "bold",
     paddingLeft: 10,
   },
