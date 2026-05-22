@@ -55,4 +55,19 @@ const getLogsByDate = async (req, res) => {
     }
 }
 
-module.exports = { logDose, getLogsByDate };
+// Route    GET /api/adherence/history      private access
+const getAdherenceHistory = async (req, res) => {
+    try {
+        // fetch logs for the active user, sorted from newest to oldest
+        const logs = await AdherenceLog.find({ user: req.user._id })
+            .populate('medication', 'name dosage') // get pill details dynamically
+            .sort({ dateString: -1, scheduledTime: -1 });
+
+        res.status(200).json({ success: true, data: logs });
+    } catch (err) {
+        console.error("Failed to fetch history logs: ", err);
+        res.status(500).json({ message: "Server error" });
+    }
+}
+
+module.exports = { logDose, getLogsByDate, getAdherenceHistory };
