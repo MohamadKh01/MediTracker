@@ -59,7 +59,7 @@ export default function Header({ user, signOut }: HeaderProps) {
                             <Text style={styles.menuText}>History</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/dashboard')}>
+                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(shared)/profile')}>
                             <Text style={styles.menuText}>Settings</Text>
                         </TouchableOpacity>
 
