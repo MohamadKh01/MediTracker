@@ -27,6 +27,15 @@ connectDB();
 
 // middleware
 const app = express();
+
+// middleware to clean double slash
+app.use((req, res, next) => {
+    if(req.url() && req.url.includes('//')) {
+        req.url = req.url.replace(/\/{2,}/g, '/');
+    }
+    next(0);
+});
+
 app.use(cors());
 app.use(express.json());
 app.use(logger);
