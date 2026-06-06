@@ -30,7 +30,7 @@ const app = express();
 
 // middleware to clean double slash
 app.use((req, res, next) => {
-    if(req.url() && req.url.includes('//')) {
+    if(req.url && req.url.includes('//')) {
         req.url = req.url.replace(/\/{2,}/g, '/');
     }
     next(0);
