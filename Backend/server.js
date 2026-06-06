@@ -33,7 +33,7 @@ app.use((req, res, next) => {
     if(req.url && req.url.includes('//')) {
         req.url = req.url.replace(/\/{2,}/g, '/');
     }
-    next(0);
+    next();
 });
 
 app.use(cors());
