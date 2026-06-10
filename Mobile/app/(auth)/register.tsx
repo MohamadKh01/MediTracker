@@ -11,6 +11,7 @@ export default function Register() {
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -29,10 +30,15 @@ export default function Register() {
   const handleRegister = async () => {
     try {
       setIsSubmitting(true);
+
+      if (!username.trim()) {
+        throw new Error("Username is required");
+      }
+
       const response = await fetch(`${BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "content-type": "application/json", },
-        body: JSON.stringify({ name, email, password, role, phone }),
+        body: JSON.stringify({ name, username: username.trim(), email, password, role, phone }),
       });
 
       const data = await response.json();
@@ -67,6 +73,19 @@ export default function Register() {
         style={styles.input}
         value={name}
         onChangeText={setName}
+        placeholder="John doe"
+        placeholderTextColor="#9CA3AF"
+      />
+
+      <Text style={styles.label}>Username</Text>
+      <TextInput
+        style={styles.input}
+        value={username}
+        onChangeText={setUsername}
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder="John_doe"
+        placeholderTextColor="#9CA3AF"
       />
 
       <Text style={styles.label}>Email</Text>

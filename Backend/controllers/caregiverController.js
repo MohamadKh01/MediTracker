@@ -5,7 +5,7 @@ const AdherenceLog = require('../models/AdherenceLog');
 // Route    GET /api/caregiver/dashboard
 const getCaregiverDashboard = async (req, res) => {
     try {
-        const caregiver = await User.findById(req.user._id).populate("assignedPatients", "name email phone role");
+        const caregiver = await User.findById(req.user._id).populate("assignedPatients", "name email phone role gender bloodType dateOfBirth age");
 
         if (!caregiver) {
             return res.status(404).json({ success: false, message: "Caregiver not found" });
@@ -39,6 +39,10 @@ const getCaregiverDashboard = async (req, res) => {
                 email: patient.email,
                 role: patient.role,
                 phone: patient.phone || "Not provided",
+                gender: patient.gender,
+                bloodType: patient.bloodType,
+                dateOfBirth: patient.dateOfBirth,
+                age: patient.age,
                 medicationsCount: patientMeds.length,
                 todaySummary: {
                     taken: takenCount,
@@ -57,25 +61,25 @@ const getCaregiverDashboard = async (req, res) => {
 
 // Route    GET /api/caregiver/patient/:id
 const getPatientDetailedInspection = async (req, res) => {
-    try{
+    try {
         const { id } = req.params;
 
         // make sure this patient is linked to this caregiver
         const caregiver = await User.findById(req.user._id);
         const isLinked = caregiver.assignedPatients.some(patientId => patientId.toString() === id);
 
-        if(!isLinked) {
+        if (!isLinked) {
             return res.status(403).json({ success: false, message: "Access denied" });
         }
 
-        const patient = await User.findById(id).select("name email phone");
-        if(!patient) {
-            return res.status(404).json({ success: false, message: "patient not found"});
+        const patient = await User.findById(id).select("name email phone gender bloodType dateOfBirth age");
+        if (!patient) {
+            return res.status(404).json({ success: false, message: "patient not found" });
         }
 
         // fetch medications and logs
         const meds = await Medication.find({ user: id }).select("name dosage frequency active");
-        const logs = await AdherenceLog.find({ user: id})
+        const logs = await AdherenceLog.find({ user: id })
             .sort({ createdAt: -1 })
             .select("medicationName takenAt status dateString timeString");
 

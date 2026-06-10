@@ -51,13 +51,26 @@ export default function Header({ user, signOut }: HeaderProps) {
                 {/* Dropdown options list menu overlaying layout element below */}
                 {menuVisible && (
                     <View style={styles.dropdownMenu}>
-                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/dashboard')}>
-                            <Text style={styles.menuText}>Dashboard</Text>
-                        </TouchableOpacity>
+                        {user?.role === "patient" && (
+                            <>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/dashboard')}>
+                                    <Text style={styles.menuText}>Dashboard</Text>
+                                </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/historyLog')}>
-                            <Text style={styles.menuText}>History</Text>
-                        </TouchableOpacity>
+
+                                <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/historyLog')}>
+                                    <Text style={styles.menuText}>History</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {user?.role === "caregiver" && (
+                            <>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(caregiver)/dashboard')}>
+                                    <Text style={styles.menuText}>Dashboard</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(shared)/profile')}>
                             <Text style={styles.menuText}>Settings</Text>

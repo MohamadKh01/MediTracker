@@ -6,10 +6,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 interface User {
     _id: string;
     name: string;
+    username: string;
     email: string;
     role: 'patient' | 'caregiver';
+    dateOfBirth: string | null;
+    age: number | null;
+    gender: "Male" | "Female" | "Prefer not to say";
+    bloodType: "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "Not specified";
     token: string;
-    phone?: string;
+    phone: string;
 }
 
 // structure of authContext
