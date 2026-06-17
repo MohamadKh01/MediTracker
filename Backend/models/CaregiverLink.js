@@ -1,23 +1,30 @@
 const mongoose = require('mongoose');
 
-const caregiverLinkScema = new mongoose.Schema({
+const CaregiverLinkSchema = new mongoose.Schema({
     caregiver: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: "Users",
         required: true,
     },
     patient: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Users',
         required: true,
     },
     status: {
         type: String,
-        enum: ['pending', 'approved'],
+        enum: ['pending', 'approved', 'rejected', 'revoked'],
         default: 'pending',
     },
-},{
+    initiatedBy: {
+        type: String,
+        enum: ['caregiver', 'patient'],
+        required: [true, "Must log who initiated this link request"]
+    }
+}, {
     timestamps: true,
 });
 
-module.exports = mongoose.model("CaregiverLink", caregiverLinkScema);
+CaregiverLinkSchema.index({ caregiver: 1, patient: 1 }, { unique: true });
+
+module.exports = mongoose.model("CaregiverLink", CaregiverLinkSchema);

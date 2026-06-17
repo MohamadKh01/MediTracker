@@ -1,22 +1,21 @@
 const express = require('express');
 const router = express.Router();
 
-const { addMedication, getAllMedications, deleteMedication, editMedication } = require("../controllers/medicationsController");
-const { protect } = require("../middleware/protect");
+const { createMedication, getMyMedications, updateMedication, deleteMedication } = require('../controllers/medicationController');
+const { protect } = require('../middleware/protect');
 
-// All med routes should be protected
 router.use(protect);
 
-// POST /api/medications/
-router.post('/', addMedication);
+// Route GET /api/medications
+router.get('/', getMyMedications);
 
-// GET /api/medications/
-router.get("/", getAllMedications);
+// Route POST /api/medications
+router.post('/', createMedication);
 
-// DELETE /api/medications/:id
-router.delete("/:id", deleteMedication);
+// Route PUT /api/medications/:id
+router.put('/:id', updateMedication);
 
-// PUT /api/medication/:id
-router.put("/:id", editMedication);
+// Route DELETE /api/medications/id
+router.delete('/:id', deleteMedication);
 
 module.exports = router;

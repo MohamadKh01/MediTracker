@@ -1,34 +1,43 @@
-import { Stack, Redirect } from "expo-router";
-import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet } from "react-native";
+import { useEffect } from "react";
+import { Stack } from "expo-router";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 
-import { useAuth } from "@/context/authContext";
+import { useAuth } from "../../context/authContext";
 
 export default function AuthLayout() {
-    const { user, isLoading } = useAuth();
+    const { isLoading, user, checkLogin } = useAuth();
 
-    // wait until auth finish loading before rendering anything
+    useEffect(() => {
+        if (!isLoading) {
+            checkLogin();
+        }
+    }, [isLoading, user]);
+
     if (isLoading) {
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" color="#2563EB" />
+            </View>
+        );
+    }
+
+    if (user) {
         return null;
     }
 
-    // if user is logged in, redirect depending on role
-    if (user) {
-        if (user.role === "patient") {
-            return <Redirect href="/(patient)/dashboard" />;
-        }
-        if (user.role === "caregiver") {
-            return <Redirect href="/(caregiver)/dashboard" />;
-        }
-    }
-
     return (
-        // KeyboardAvoidingView prevents the keyboard from covering up input fields
-        // it pushes the UI up when the keyboard opens
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
-            {/* this pressable covers the entire screen, dismiss keyboard when user taps outside a text input */}
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
-            {/* manage navigation between screens */}
-            <Stack screenOptions={{ headerShown: false }} />
-        </KeyboardAvoidingView>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FFFFFF" } }} >
+            <Stack.Screen name="login" options={{ title: "Login" }} />
+            <Stack.Screen name="register" options={{ title: "Register" }} />
+        </Stack>
     );
 }
+
+const styles = StyleSheet.create({
+    center: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF"
+    }
+})

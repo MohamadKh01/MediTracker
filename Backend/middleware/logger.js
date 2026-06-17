@@ -1,9 +1,9 @@
 // track API calls
 const logger = (req, res, next) => {
-    // record start time
+    //record start time
     const start = Date.now();
 
-    // this function runs once the response is done sending
+    // this function runs once when the response is done sending
     res.on('finish', () => {
         // calculate time taken
         const duration = Date.now() - start;

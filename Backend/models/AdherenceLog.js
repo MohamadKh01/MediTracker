@@ -3,37 +3,40 @@ const mongoose = require('mongoose');
 const AdherenceLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'Users',
         required: true,
+        index: true,
     },
     medication: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Medication',
+        ref: 'Medications',
         required: true,
+        index: true,
     },
-    status: {
-        type: String,
-        enum: ['taken', 'missed'],
-        required: true,
-    },
-    // storing the day "2026-04-27"
-    dateString: {
-        type: String,
-        required: true,
-    },
-    // storing the time "08:00"
     scheduledTime: {
         type: String,
         required: true,
     },
+    logDate: {
+        type: Date,
+        required: true,
+    },
+    status: {
+        type: String,
+        enum: ['taken', 'skipped', 'missed'],
+        required: [true, 'status is required'],
+    },
     takenAt: {
         type: Date,
-        default: Date.now,
     },
-},{
-    timestamps: true,
+    notes: {
+        type: String,
+        trim: true,
+    }
+}, {
+    timestamps: true
 });
 
-AdherenceLogSchema.index({ user: 1, dateString: 1 });
+AdherenceLogSchema.index({ medication: 1, logDate: 1, scheduledTime: 1 }, { unique: true });
 
 module.exports = mongoose.model('AdherenceLog', AdherenceLogSchema);

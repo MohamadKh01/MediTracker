@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "535240796604",
+    "project_id": "meditracker-391ec",
+    "storage_bucket": "meditracker-391ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:535240796604:android:6aa345de20f9af3e4a23b9",
+        "android_client_info": {
+          "package_name": "com.MediTracker.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCH7grshKDN1dyzEuD3jk5ZFBKAcwmeIwo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:535240796604:android:ea5a6f4b69cf41754a23b9",
+        "android_client_info": {
+          "package_name": "com.meditracker.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCH7grshKDN1dyzEuD3jk5ZFBKAcwmeIwo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

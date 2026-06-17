@@ -1,34 +1,57 @@
-import { Stack, Redirect } from "expo-router";
-import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet } from "react-native";
+import { useEffect } from "react";
+import { Stack } from "expo-router";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth } from "@/context/authContext";
+import { useAuth } from "../../context/authContext";
+import Header from "../../components/Header";
+import { initializeAndSyncPushToken } from "../../utils/notifications";
 
 export default function PatientLayout() {
-    const { user, isLoading } = useAuth();
+    const { isLoading, user, authenticate } = useAuth();
+    const insets = useSafeAreaInsets();
 
-    // wait for auth to load before rendering anything
-    if (isLoading) {
-        return null;
-    }
+    useEffect(() => {
+        if (!isLoading && user) {
+            authenticate("patient");
+            // fire the background token initializatoin handshake
+            initializeAndSyncPushToken(user.token);
+        }
+    }, [isLoading, user]);
 
-    // if no user is registered, redirect to login page
-    if (!user) {
-        return <Redirect href="/(auth)/login" />;
-    }
-
-    // if user is not a patient, redirect to index page
-    if (user.role !== "patient") {
-        return <Redirect href="/" />
+    if (isLoading || !user || user.role !== "patient") {
+        return (
+            <View style={styles.center}>
+                <ActivityIndicator size="large" color="#2563EB" />
+            </View>
+        );
     }
 
     return (
-        // KeyboardAvoidingView prevents the keyboard from covering up input fields
-        // it pushes the UI up when the keyboard opens
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="height">
-            {/* this pressable covers the entire screen, dismiss keyboard when user taps outside a text input */}
-            <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} />
-            {/* manage navigation between screens */}
-            <Stack screenOptions={{ headerShown: false }} />
-        </KeyboardAvoidingView>
-    );
+        <View style={[styles.rootWrapper, { paddingTop: insets.top }]}>
+            <Stack
+                screenOptions={{
+                    contentStyle: { backgroundColor: "#FFFFFF" },
+                    header: () => <Header user={user} />
+                }}
+            >
+                <Stack.Screen name="dashboard" options={{ title: "Dashboard" }} />
+                <Stack.Screen name="addMedication" options={{ title: "Add Medication" }} />
+                <Stack.Screen name="historyLog" options={{ title: "History Log" }} />
+            </Stack>
+        </View>
+    )
 }
+
+const styles = StyleSheet.create({
+    rootWrapper: {
+        flex: 1,
+        backgroundColor: "#FFFFFF"
+    },
+    center: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "#FFFFFF"
+    }
+})

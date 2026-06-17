@@ -1,5 +1,5 @@
-// Format date into yyyy-mm-dd using local time
-// fixed UTC bug, dates are saved three hours earlier in database
+// Format date into YYYY-MM-DD using local time
+// Fixed UTC bug, dates are saved 3 hours earlier in database
 export const getLocalDateString = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
