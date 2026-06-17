@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
 
-const { getUserProfile, updateUserProfile } = require("../controllers/profileController");
 const { protect } = require('../middleware/protect');
+const { getUserProfile, updateUserProfile } = require('../controllers/profileController');
 
 router.use(protect);
 
-// GET  /api/users/profile
-router.get('/profile', protect, getUserProfile);
+// Route    GET /api/users/profile
+router.get('/profile', getUserProfile);
 
-// PUT  /api/users/profile
-router.put('/profile', updateUserProfile);
+//Route     PUT /api/users/updateProfile
+router.put('/updateProfile', updateUserProfile);
 
 module.exports = router;

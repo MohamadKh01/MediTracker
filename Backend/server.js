@@ -1,4 +1,4 @@
-// these two lines to override mongoDB ECONNREFUSED error
+// these two lines override mongoDB ECONNREFUSED error
 const dns = require('node:dns/promises');
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
@@ -8,54 +8,47 @@ const cors = require('cors');
 
 const connectDB = require('./config/db.js');
 
+const { startNotificationCronEngine } = require('./utils/cronEngine.js');
+
 const notFound = require('./middleware/notFound.js');
-const errorHandler = require('./middleware/errorMiddleware.js');
 const logger = require('./middleware/logger.js');
+const errorHandler = require('./middleware/errorMiddleware.js');
 
-const healthRoutes = require('./routes/healthRoutes.js');
 const authRoutes = require('./routes/authRoutes.js');
-const medRoutes = require('./routes/medicationRoutes.js');
-const adherenceRoutes = require('./routes/adherenceRoutes.js');
-const notificationsRoutes = require('./routes/notificationsRoutes.js');
 const profileRoutes = require('./routes/profileRoutes.js');
-const caregiverRoutes = require("./routes/CaregiverRoutes.js");
+const medicationRoutes = require('./routes/medicationRoutes.js');
+const adherenceRoutes = require('./routes/adherenceRoutes.js');
+const linkRoutes = require('./routes/linkRoutes.js');
+const caregiverRoutes = require('./routes/caregiverRoutes.js');
 
-// load .env file content into process.env
+// load .env file content into proces.env
 dotenv.config();
 
-//connect to mongoDB
+// connect to mongoDB
 connectDB();
 
-// middleware
+// middlewares
 const app = express();
-
-// middleware to clean double slash
-app.use((req, res, next) => {
-    if(req.url && typeof req.url === "string" && req.url.includes('//')) {
-        req.url = req.url.replace(/\/{2,}/g, '/');
-    }
-    next();
-});
 
 app.use(cors());
 app.use(express.json());
 app.use(logger);
 
 // routes
-app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/medications', medRoutes);
-app.use('/api/adherence', adherenceRoutes);
-app.use('/api/notifications', notificationsRoutes);
 app.use('/api/users', profileRoutes);
+app.use('/api/medications', medicationRoutes);
+app.use('/api/adherence', adherenceRoutes);
+app.use('/api/link', linkRoutes);
 app.use('/api/caregiver', caregiverRoutes);
 
-// error middleware
+// error middlewares
 app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`app listening on http://localhost:${PORT}`);
+    console.log(`App listening on http://localhost:${PORT}`);
+    startNotificationCronEngine();
 });

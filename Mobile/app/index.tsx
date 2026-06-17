@@ -7,15 +7,13 @@ import { useAuth } from "../context/authContext";
 export default function Welcome() {
   const { user, isLoading, checkLogin } = useAuth();
 
-  // check if user is logged in on first page load and whenever isLoading state is updated
+  // check if user is logged in on first page load and when isLoadig state is updated
   useEffect(() => {
     if (!isLoading) {
       checkLogin();
     }
   }, [isLoading]);
 
-  // if the auth is still running or if a user is found, show nothing
-  // the layout will redirect automatically
   if (isLoading || user) {
     return null;
   }

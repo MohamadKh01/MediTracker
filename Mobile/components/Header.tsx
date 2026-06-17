@@ -1,20 +1,23 @@
-import React, { Profiler, useState } from "react";
+import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
 import { router } from "expo-router";
+
+import { useAuth } from "../context/authContext";
 
 interface HeaderProps {
     user: {
         name?: string;
         role?: string;
     } | null;
-    signOut: () => void;
 }
 
-export default function Header({ user, signOut }: HeaderProps) {
-    const [menuVisible, setMenuVisible] = useState(false);
+export default function Header({ user }: HeaderProps) {
+    const { signOut } = useAuth();
+
+    const [menuVisible, setMenuVisisble] = useState(false);
 
     const handleMenuAction = (routePath: string | null, actionCallback?: () => void) => {
-        setMenuVisible(false);
+        setMenuVisisble(false);
         if (actionCallback) {
             actionCallback();
         } else if (routePath) {
@@ -24,9 +27,9 @@ export default function Header({ user, signOut }: HeaderProps) {
 
     return (
         <>
-            {/* tap overlay layer to dismiss dropdown options panel */}
+            {/* Tap to close menu */}
             {menuVisible && (
-                <Pressable style={styles.backdrop} onPress={() => setMenuVisible(false)} />
+                <Pressable style={styles.backdrop} onPress={() => setMenuVisisble(false)} />
             )}
 
             <View style={styles.header}>
@@ -34,7 +37,7 @@ export default function Header({ user, signOut }: HeaderProps) {
 
                 <TouchableOpacity
                     style={styles.userSection}
-                    onPress={() => setMenuVisible(!menuVisible)}
+                    onPress={() => setMenuVisisble(!menuVisible)}
                     activeOpacity={0.7}
                 >
                     <View style={styles.userInfo}>
@@ -43,20 +46,39 @@ export default function Header({ user, signOut }: HeaderProps) {
                     </View>
                     <View style={styles.profilePic}>
                         <Text style={styles.profileLetter}>
-                            {user?.name ? user.name?.charAt(0).toUpperCase() : "U"}
+                            {user?.name ? user?.name.charAt(0).toUpperCase() : "U"}
                         </Text>
                     </View>
                 </TouchableOpacity>
 
-                {/* Dropdown options list menu overlaying layout element below */}
                 {menuVisible && (
                     <View style={styles.dropdownMenu}>
-                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/dashboard')}>
-                            <Text style={styles.menuText}>Dashboard</Text>
-                        </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/historyLog')}>
-                            <Text style={styles.menuText}>History</Text>
+                        {/* User specific pages */}
+                        {user?.role === "patient" && (
+                            <>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/dashboard')}>
+                                    <Text style={styles.menuText}>Dashboard</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(patient)/historyLog')}>
+                                    <Text style={styles.menuText}>History</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {/* Caregiver specific pages */}
+                        {user?.role === "caregiver" && (
+                            <>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(caregiver)/dashboard')}>
+                                    <Text style={styles.menuText}>Dashboard</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {/* Shared pages between all roles */}
+                        <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(shared)/connections')}>
+                            <Text style={styles.menuText}>Connections</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuItem} onPress={() => handleMenuAction('/(shared)/profile')}>
@@ -64,13 +86,13 @@ export default function Header({ user, signOut }: HeaderProps) {
                         </TouchableOpacity>
 
                         <TouchableOpacity style={[styles.menuItem, styles.lastItem]} onPress={() => handleMenuAction(null, signOut)}>
-                            <Text style={[styles.menuText, styles.signOutText]}>Sign Out</Text>
+                            <Text style={[styles.menuText, styles.signOutText]}>Sign out</Text>
                         </TouchableOpacity>
                     </View>
                 )}
             </View>
         </>
-    );
+    )
 }
 
 const styles = StyleSheet.create({
@@ -87,7 +109,7 @@ const styles = StyleSheet.create({
         zIndex: 100,
     },
     backdrop: {
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         zIndex: 99,
     },
     brand: {

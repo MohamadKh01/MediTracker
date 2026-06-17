@@ -1,123 +1,86 @@
-import * as Notifications from "expo-notifications";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
-export const NOTIFICATIONS_STORAGE_KEY = '@med_notification_ids';
+import { BASE_URL } from '../constants/api';
 
+// configure how notifications behave when the app is running in the foreground
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldSetBadge: false,
         shouldShowBanner: true,
         shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
     })
 })
 
-// permissions and channels
-export async function registerForPushNotificationsAsync() {
-    let { status } = await Notifications.getPermissionsAsync();
-
-    if (status !== 'granted') {
-        const request = await Notifications.requestPermissionsAsync();
-        status = request.status;
-    }
-
-    if (status !== 'granted') {
-        alert("Permission for notifications not granted! Please enable in Settings.");
+// request permissions for push notifications
+export async function requestAndroidNotificationPermissions(): Promise<boolean> {
+    // physical device safety check
+    if (!Device.isDevice) {
+        console.log("Push notifications are only supported on physical devices, not emulators");
         return false;
     }
 
-    await Notifications.setNotificationChannelAsync('medication-reminders', {
-        name: 'Medication Reminders',
+    // build a high importance notification channel
+    await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default Medical Alerts',
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#FF231F7C",
-        showBadge: true,
+        vibrationPattern: [0, 500, 250, 500],
+        lightColor: "#2563EB",
     });
+
+    // check existing permissions
+    const { status: exisingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = exisingStatus;
+
+    // if permissions not granted, ask for them
+    if (exisingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+        console.log("User denied notification permissions on this device");
+        return false;
+    }
 
     return true;
 }
 
-// action buttons (mark as taken / snooze)
-export async function setNotificationCategories() {
-    await Notifications.setNotificationCategoryAsync('medication-actions', [
-        {
-            identifier: 'mark-taken',
-            buttonTitle: 'Mark as Taken ✅',
-            options: { opensAppToForeground: true },
-        },
-        {
-            identifier: 'snooze',
-            buttonTitle: 'Snooze (10m) 😴',
-            options: { opensAppToForeground: true },
-        },
-    ]);
-}
-
-// schedule and store reminders
-export async function scheduleAndStoreNotifications(medicationId: string, pillName: string, times: { hour: number, minute: number }[]) {
-    const newIds: string[] = [];
-
-    await registerForPushNotificationsAsync();
-
-    for (const time of times) {
-        try {
-            const id = await Notifications.scheduleNotificationAsync({
-                content: {
-                    title: "Pill Reminder 💊",
-                    body: `It's time to take your ${pillName}.`,
-                    categoryIdentifier: 'medication-actions',
-                    color: "#2563EB",
-                    data: {
-                        medicationId: medicationId,
-                        medicationName: pillName,
-                        scheduledTime: `${time.hour.toString().padStart(2, '0')}:${time.minute.toString().padStart(2, '0')}`,
-                    },
-                },
-                trigger: {
-                    hour: time.hour,
-                    minute: time.minute,
-                    channelId: 'medication-reminders',
-                    type: Notifications.SchedulableTriggerInputTypes.DAILY,
-                },
-            });
-            newIds.push(id);
-        } catch (err) {
-            console.error("Schedule error: ", err);
-        }
-    }
-
-    // save the ids locally
+// fetch unique expo push token and update user's profile
+export async function initializeAndSyncPushToken(userToken: string): Promise<void> {
     try {
-        const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-        const storage = existingData ? JSON.parse(existingData) : {};
-        const currentMedIds = storage[medicationId] || [];
-        storage[medicationId] = [...currentMedIds, ...newIds];
-        await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
-    } catch (err) {
-        console.error("failed to update notification storage registry mapping context: ", err);
-    }
-    return newIds;
-}
-
-// cancel specific reminders
-export async function cancelMedicationReminders(medicationId: string) {
-    try {
-        const existingData = await AsyncStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
-        if (!existingData) {
+        // check for permissions
+        const hasPermission = await requestAndroidNotificationPermissions();
+        if (!hasPermission) {
             return;
         }
 
-        const storage = JSON.parse(existingData);
-        const idsToCancel = storage[medicationId];
+        // fetch unique push token from expo's servers
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+            projectId: "41c5c5b0-d823-42c7-aae6-6220fd22c83b",
+        });
 
-        if (idsToCancel && Array.isArray(idsToCancel)) {
-            for (const id of idsToCancel) {
-                await Notifications.cancelScheduledNotificationAsync(id);
-            }
-            delete storage[medicationId];
-            await AsyncStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(storage));
+        const pushToken = tokenData.data;
+        console.log("Generated android push token: ", pushToken);
+
+        // add token to user database
+        const res = await fetch(`${BASE_URL}/api/users/updateProfile`, {
+            method: "PUT",
+            headers: {
+                "Authorization": `Bearer ${userToken}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ expoPushToken: pushToken })
+        });
+
+        const result = await res.json();
+        if (result.success) {
+            console.log("Push token synced to database");
+        } else {
+            console.error("Backend rejected token sync: ", result.message);
         }
     } catch (err) {
-        console.error("Error executing cancellation logic routing parameters: ", err);
+        console.error("Failed during push token initialization: ", err);
     }
 }
