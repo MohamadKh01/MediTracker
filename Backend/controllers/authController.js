@@ -11,6 +11,12 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ success: false, message: "Please provide all required fields" });
         }
 
+        // Password strength validation
+        const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if(!passRegex.test(password)) {
+            return res.status(400).json({ success: false, message: "Password must be at least 8 characters and contain at least 1 uppercase, 1 lowercase, one number and one special character" });
+        }
+
         const cleanUsername = username.trim().toLowerCase();
         const cleanEmail = email.trim().toLowerCase();
 
