@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Pressable, Modal, StatusBar, FlatList, ToastAndroid, ActivityIndicator, Alert } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { router, useFocusEffect } from "expo-router";
@@ -44,6 +44,13 @@ interface Medication {
     notes?: string;
 };
 
+interface DoseCard {
+    doseKey: string;
+    medication: Medication;
+    scheduledTime: string;
+    isPRN: boolean;
+}
+
 export default function PatientDashboard() {
     const { user } = useAuth();
     const insets = useSafeAreaInsets();
@@ -62,7 +69,6 @@ export default function PatientDashboard() {
             }
         }, [user])
     );
-
 
     // fetch medications from database
     const fetchMedications = async () => {
@@ -199,6 +205,27 @@ export default function PatientDashboard() {
         });
     }, [medications, selectedDate]);
 
+    // expand filtered medications into one dose card per scheduled time, PRN meds have only one card
+    const doseCards = useMemo<DoseCard[]>(() => {
+        return filterMedication.flatMap(med => {
+            if (!med.schedule || med.schedule.length === 0) {
+                return [{
+                    doseKey: `${med._id}_prn`,
+                    medication: med,
+                    scheduledTime: '',
+                    isPRN: true,
+                } as DoseCard];
+            }
+
+            return med.schedule.map(slot => ({
+                doseKey: `${med._id}_${slot.time}`,
+                medication: med,
+                scheduledTime: slot.time,
+                isPRN: false,
+            }));
+        });
+    }, [filterMedication]);
+
     // save the id of the medication card we want to expand
     const toggleExpandedId = (id: string) => {
         setExpandedId(expandedId === id ? null : id);
@@ -284,6 +311,12 @@ export default function PatientDashboard() {
         }
     }
 
+    // log medications that have no scheduled time (Most likely will never be triggered since we force schedule time when creating a medication)
+    const handleLogPRNDose = async (medId: string, status: 'taken' | 'skipped', notes: string) => {
+        const nowTime = new Date().toTimeString().slice(0, 8); // "HH:MM:SS"
+        await handleLogAdherence(medId, nowTime, status, notes);
+    }
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -350,28 +383,38 @@ export default function PatientDashboard() {
                 ) : (
                     // medication cards list
                     <FlatList
-                        data={filterMedication}
-                        keyExtractor={(item) => item._id}
+                        data={doseCards}
+                        keyExtractor={(item) => item.doseKey}
                         showsVerticalScrollIndicator={false}
-                        renderItem={({ item }) => {
-                            const isExpanded = expandedId === item._id;
+                        renderItem={({ item: doseCard }) => {
+                            const { medication: item, scheduledTime: currentSlotTime, isPRN, doseKey } = doseCard;
+                            const isExpanded = expandedId === doseKey;
                             const isLowStock = item.inventory?.trackingEnabled && ((item.inventory.currentQuantity ?? 0) <= (item.inventory.refillThreshold ?? 0));
                             const activeDay = getLocalDateString(new Date(selectedDate));
-                            const currentSlotTime = item.schedule[0]?.time || "00:00";
 
-                            const existingLog = adherenceLogs.find(log => {
-                                const parsedLogDateStr = getLocalDateString(new Date(log.logDate));
-                                const loggedMedId = typeof log.medication === 'object' ? log.medication._id : log.medication;
+                            const existingLog = !isPRN
+                                ? adherenceLogs.find(log => {
+                                    const parsedLogDateStr = getLocalDateString(new Date(log.logDate));
+                                    const loggedMedId = typeof log.medication === 'object' ? log.medication._id : log.medication;
 
-                                return loggedMedId === item._id &&
-                                    log.scheduledTime === currentSlotTime &&
-                                    parsedLogDateStr === activeDay;
-                            })
+                                    return loggedMedId === item._id &&
+                                        log.scheduledTime === currentSlotTime &&
+                                        parsedLogDateStr === activeDay;
+                                })
+                                : undefined;
+
+                            const prnLogsToday = isPRN
+                                ? adherenceLogs.filter(log => {
+                                    const parsedLogDateStr = getLocalDateString(new Date(log.logDate));
+                                    const loggedMedId = typeof log.medication === 'object' ? log.medication._id : log.medication;
+                                    return loggedMedId === item._id && parsedLogDateStr === activeDay;
+                                }).sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))
+                                : [];
 
                             return (
                                 <TouchableOpacity
                                     activeOpacity={0.6}
-                                    onPress={() => toggleExpandedId(item._id)}
+                                    onPress={() => toggleExpandedId(doseKey)}
                                     style={[styles.medCard, isExpanded && styles.expandedCard]}
                                 >
                                     {/* Collapsed summary row */}
@@ -384,7 +427,7 @@ export default function PatientDashboard() {
                                         </View>
                                         <View style={styles.timeBadge}>
                                             <Text style={styles.timeText}>
-                                                {item.schedule.map(s => s.time).join(', ')}
+                                                {isPRN ? "As needed" : currentSlotTime}
                                             </Text>
                                         </View>
                                     </View>
@@ -428,7 +471,7 @@ export default function PatientDashboard() {
                                                 )}
                                             </View>
 
-                                            {existingLog && (
+                                            {!isPRN && existingLog && (
                                                 <View style={[
                                                     styles.statusBadge,
                                                     existingLog.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }
@@ -437,20 +480,38 @@ export default function PatientDashboard() {
                                                 </View>
                                             )}
 
+                                            {isPRN && prnLogsToday.length > 0 && (
+                                                <View style={styles.prnHistoryContainer}>
+                                                    <Text style={styles.detailLabel}>Logged Today</Text>
+                                                    {prnLogsToday.map(log => (
+                                                        <View key={log._id} style={[styles.statusBadge, log.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }]}>
+                                                            <Text style={styles.statusBadgeText}>
+                                                                {log.status.toUpperCase()} • {log.scheduledTime.slice(0, 5)}
+                                                            </Text>
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                            )}
+
                                             {/* Action buttons for logging compliance */}
                                             <View style={styles.actionRow}>
                                                 <TouchableOpacity
-                                                    style={[styles.baseButton, styles.takenButton, existingLog?.status === 'taken' && { opacity: 0.5 }]}
-                                                    onPress={() => handleLogAdherence(item._id, currentSlotTime, 'taken', item.notes || "")}
-                                                    disabled={existingLog?.status === 'taken'}
+                                                    style={[styles.baseButton, styles.takenButton, !isPRN && existingLog?.status === 'taken' && { opacity: 0.5 }]}
+                                                    onPress={() => isPRN
+                                                        ? handleLogPRNDose(item._id, 'taken', item.notes || "")
+                                                        : handleLogAdherence(item._id, currentSlotTime, 'taken', item.notes || "")
+                                                    }
+                                                    disabled={!isPRN && existingLog?.status === 'taken'}
                                                 >
                                                     <Text style={[styles.baseButtonText, styles.takenButtonText]}>Mark Taken</Text>
                                                 </TouchableOpacity>
 
                                                 <TouchableOpacity
-                                                    style={[styles.baseButton, styles.skipButton, existingLog?.status === 'skipped' && { opacity: 0.5 }]}
-                                                    onPress={() => handleLogAdherence(item._id, currentSlotTime, 'skipped', item.notes || "")}
-                                                    disabled={existingLog?.status === 'skipped'}
+                                                    style={[styles.baseButton, styles.skipButton, !isPRN && existingLog?.status === 'skipped' && { opacity: 0.5 }]}
+                                                    onPress={() => isPRN
+                                                        ? handleLogPRNDose(item._id, 'skipped', item.notes || "")
+                                                        : handleLogAdherence(item._id, currentSlotTime, 'skipped', item.notes || "")
+                                                    } disabled={existingLog?.status === 'skipped'}
                                                 >
                                                     <Text style={[styles.baseButtonText, styles.skipButtonText]}>Skip</Text>
                                                 </TouchableOpacity>
@@ -668,6 +729,9 @@ const styles = StyleSheet.create({
         color: "#FFFFFF",
         fontSize: 12,
         fontWeight: "700",
+    },
+    prnHistoryContainer: {
+        marginBottom: 10,
     },
 
     // card buttons
