@@ -30,6 +30,11 @@ connectDB();
 // middlewares
 const app = express();
 
+// ping route to keep render awake
+app.get('/hp', (req, res) => {
+    res.status(200).send("Alive");
+});
+
 app.use(cors());
 app.use(express.json());
 app.use(logger);
