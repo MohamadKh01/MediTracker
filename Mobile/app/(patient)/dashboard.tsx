@@ -425,6 +425,29 @@ export default function PatientDashboard() {
                                                 {item.dosage.value} {item.dosage.unit} • {item.type}
                                             </Text>
                                         </View>
+
+                                        {!isPRN && existingLog && (
+                                            <View style={[
+                                                styles.statusBadge,
+                                                existingLog.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }
+                                            ]}>
+                                                <Text style={styles.statusBadgeText}>{existingLog.status.toUpperCase()}</Text>
+                                            </View>
+                                        )}
+
+                                        {isPRN && prnLogsToday.length > 0 && (
+                                            <View style={styles.prnHistoryContainer}>
+                                                <Text style={styles.detailLabel}>Logged Today</Text>
+                                                {prnLogsToday.map(log => (
+                                                    <View key={log._id} style={[styles.statusBadge, log.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }]}>
+                                                        <Text style={styles.statusBadgeText}>
+                                                            {log.status.toUpperCase()} • {log.scheduledTime.slice(0, 5)}
+                                                        </Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        )}
+
                                         <View style={styles.timeBadge}>
                                             <Text style={styles.timeText}>
                                                 {isPRN ? "As needed" : currentSlotTime}
@@ -470,28 +493,6 @@ export default function PatientDashboard() {
                                                     </View>
                                                 )}
                                             </View>
-
-                                            {!isPRN && existingLog && (
-                                                <View style={[
-                                                    styles.statusBadge,
-                                                    existingLog.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }
-                                                ]}>
-                                                    <Text style={styles.statusBadgeText}>STATUS: {existingLog.status.toUpperCase()}</Text>
-                                                </View>
-                                            )}
-
-                                            {isPRN && prnLogsToday.length > 0 && (
-                                                <View style={styles.prnHistoryContainer}>
-                                                    <Text style={styles.detailLabel}>Logged Today</Text>
-                                                    {prnLogsToday.map(log => (
-                                                        <View key={log._id} style={[styles.statusBadge, log.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }]}>
-                                                            <Text style={styles.statusBadgeText}>
-                                                                {log.status.toUpperCase()} • {log.scheduledTime.slice(0, 5)}
-                                                            </Text>
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                            )}
 
                                             {/* Action buttons for logging compliance */}
                                             <View style={styles.actionRow}>
