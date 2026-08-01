@@ -1,10 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ToastAndroid } from "react-native";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, ToastAndroid, Pressable, Modal } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 
 import { useAuth } from "../../context/authContext";
 import { BASE_URL } from "../../constants/api";
 import { getLocalDateString } from "../../utils/dates";
+import { Calendar } from "react-native-calendars";
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
 interface PatientData {
     _id: string;
@@ -60,18 +63,25 @@ interface Medication {
     notes?: string;
 };
 
+interface DoseCard {
+    doseKey: string;
+    medication: Medication;
+    scheduledTime: string;
+    isPRN: boolean;
+}
+
 export default function CaregiverDashboard() {
     const { user } = useAuth();
 
     const [patients, setPatients] = useState<LinkedPatient[]>([]);
-    const [activePatient, setActivePatient] = useState<string | null>(null);
+    const [medications, setMedications] = useState<Medication[] | null>([]);
+    const [adherenceLogs, setAdherenceLogs] = useState<any[]>([]);
 
     const [isFetching, setIsFetching] = useState(true);
+    const [isCalendarVisible, setIsCalendarVisible] = useState(false);
 
-    const [medications, setMedications] = useState<Medication[]>([]);
-
-    const [filterType, setFilterType] = useState<'all' | 'today'>('all');
-    const [activeOnly, setActiveOnly] = useState(true);
+    const [activePatient, setActivePatient] = useState<string | null>(null);
+    const [selectedDate, setSelectedDate] = useState(new Date());
 
     useFocusEffect(
         useCallback(() => {
@@ -85,6 +95,7 @@ export default function CaregiverDashboard() {
         }
     }, [activePatient]);
 
+    // get patients connected to this caregiver
     const fetchLinkedPatients = async () => {
         try {
             setIsFetching(true);
@@ -99,7 +110,7 @@ export default function CaregiverDashboard() {
 
             const result = await res.json();
             if (result.success) {
-                const approvedLinks = result.data.filter((link: LinkedPatient) => link.status === 'approved');
+                const approvedLinks = result.data.filter((link: LinkedPatient) => link.status === "approved");
                 setPatients(approvedLinks);
 
                 if (approvedLinks.length > 0 && !activePatient) {
@@ -116,24 +127,29 @@ export default function CaregiverDashboard() {
         }
     };
 
+    // get medications and logs for all patients connected to this caregiver
     const fetchPatientData = async (patientId: string) => {
         try {
             setIsFetching(true);
 
-            const res = await fetch(`${BASE_URL}/api/caregiver/patientsMeds/${patientId}`, {
-                headers: {
-                    Authorization: `Bearer ${user?.token}`
-                }
-            });
+            const medUrl = `${BASE_URL}/api/caregiver/patientsMeds/${patientId}`;
+            const logUrl = `${BASE_URL}/api/caregiver/patientsLogs/${patientId}`;
 
-            const result = await res.json();
+            const [medRes, logRes] = await Promise.all([
+                fetch(medUrl, {
+                    headers: { Authorization: `Bearer ${user?.token}` }
+                }),
+                fetch(logUrl, {
+                    headers: { Authorization: `Bearer ${user?.token}` }
+                })
+            ]);
 
-            if (result.success) {
-                setMedications(result.data);
-            }
+            const medResult = await medRes.json();
+            const logResult = await logRes.json();
 
-            if (!result.success) {
-                ToastAndroid.show(result.message || "Error pulling patient medications", ToastAndroid.SHORT);
+            if (medResult.success && logResult.success) {
+                setMedications(medResult.data);
+                setAdherenceLogs(logResult.data);
             }
         } catch (err) {
             console.error("Data fetch failed: ", err);
@@ -143,48 +159,131 @@ export default function CaregiverDashboard() {
         }
     }
 
-    const filterMedications = medications.filter(med => {
-        if (activeOnly && !med.isActive) {
-            return false;
-        }
+    // helper to shift days
+    const changeDate = (days: number) => {
+        const newDate = new Date(selectedDate);
+        newDate.setDate(selectedDate.getDate() + days);
+        setSelectedDate(newDate);
+    }
 
-        if (filterType === "today") {
-            const todayStr = getLocalDateString(new Date());
-            const startString = getLocalDateString(new Date(med.startDate));
-            const endString = med.endDate ? getLocalDateString(new Date(med.endDate)) : null;
+    // generate marked dates for the calendar
+    const markedDates = useMemo(() => {
+        const marks: any = {};
 
-            if (todayStr < startString) {
+        // mark selected date as solid blue circle
+        const selectedStr = getLocalDateString(selectedDate);
+        marks[selectedStr] = { selected: true, selectedColor: "#2563EB" };
+
+        // add dots for dates with medications
+        medications?.forEach(med => {
+            if (!med.isActive) {
+                return;
+            }
+
+            const start = new Date(med.startDate);
+            start.setHours(0, 0, 0, 0);
+
+            const end = med.endDate ? new Date(med.endDate) : new Date(start.getTime() + 90 * 24 * 60 * 60 * 1000);
+            end.setHours(23, 59, 59, 999);
+
+            let runner = new Date(start.getTime());
+
+            while (runner <= end) {
+                const dateString = getLocalDateString(runner);
+                let shouldMark = false;
+
+                // conditional filtering based on frequency type
+                if (med.frequency.type === "daily" || med.frequency.type === "as needed (PRN)") {
+                    shouldMark = true;
+                } else if (med.frequency.type === "specific days" && med.frequency.specificDays) {
+                    const currentDayName = WEEKDAYS[runner.getDay()];
+                    shouldMark = med.frequency.specificDays.includes(currentDayName);
+                } else if (med.frequency.type === "interval" && med.frequency.intervalDays) {
+                    const diffTime = Math.abs(runner.getTime() - start.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    shouldMark = diffDays % med.frequency.intervalDays === 0;
+                }
+
+                if (shouldMark) {
+                    marks[dateString] = { ...marks[dateString], marked: true, dotColor: "#2563EB" };
+                }
+
+                runner.setDate(runner.getDate() + 1);
+            }
+        });
+        return marks;
+    }, [medications, selectedDate]);
+
+    // filter medications to only show the ones due on the selected date
+    const filteredMedication = useMemo(() => {
+        return medications?.filter(med => {
+            if (!med.isActive) {
                 return false;
             }
 
-            if (endString && todayStr > endString) {
+            const start = new Date(med.startDate);
+            start.setHours(0, 0, 0, 0);
+
+            const targetDate = new Date(selectedDate);
+            targetDate.setHours(0, 0, 0, 0);
+            if (targetDate < start) {
                 return false;
             }
 
-            if (med.frequency.type === 'as needed (PRN)' || med.frequency.type === "daily") {
+            if (med.endDate) {
+                const end = new Date(med.endDate);
+                end.setHours(0, 0, 0, 0);
+                if (targetDate > end) {
+                    return false;
+                }
+            }
+
+            const freqType = med.frequency.type;
+            if (freqType === "daily" || freqType === "as needed (PRN)") {
                 return true;
             }
 
-            const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-
-            if (med.frequency.type === "specific days") {
-                return med.frequency.specificDays?.includes(todayName as any);
+            else if (freqType === "specific days" && med.frequency.specificDays) {
+                const currentDayName = WEEKDAYS[targetDate.getDay()];
+                const targetDays = med.frequency.specificDays;
+                return targetDays.includes(currentDayName);
             }
 
-            if (med.frequency.type === "interval" && med.frequency.intervalDays) {
-                const start = new Date(startString);
-                const today = new Date(todayStr);
-                const diffTime = Math.abs(today.getTime() - start.getTime());
-                const diffDays = Math.round(diffTime / (24 * 60 * 60 * 1000));
+            else if (freqType === "interval" && med.frequency.intervalDays) {
+                const diffTime = Math.abs(targetDate.getTime() - start.getTime());
+                const diffDays = Math.ceil(diffTime / (24 * 60 * 60 * 1000));
                 return diffDays % med.frequency.intervalDays === 0;
             }
-        }
 
-        return true;
-    });
+            return false;
+        });
+    }, [medications, selectedDate]);
+
+    // expand filtered medications into one dose card per scheduled time, PNR meds have only one card
+    const doseCards = useMemo<DoseCard[]>(() => {
+        return (filteredMedication || []).flatMap(med => {
+            if (!med.schedule || med.schedule.length === 0) {
+                return [{
+                    doseKey: `${med._id}_prn`,
+                    medication: med,
+                    scheduledTime: '',
+                    isPRN: true,
+                } as DoseCard];
+            }
+
+            return med.schedule.map(slot => ({
+                doseKey: `${med._id}_${slot.time}`,
+                medication: med,
+                scheduledTime: slot.time,
+                isPRN: false,
+            }));
+        });
+    }, [filteredMedication]);
 
     return (
         <View style={styles.container}>
+
+            {/* patients selector section */}
             <View style={styles.selectorWrapper}>
                 <Text style={styles.sectionTitle}>My Patients</Text>
                 {isFetching ? (
@@ -213,7 +312,7 @@ export default function CaregiverDashboard() {
                                             {patient.name.charAt(0).toUpperCase()}
                                         </Text>
                                     </View>
-                                    <Text style={[styles.patientName, isSelected && styles.selectedPatientName]} numberOfLines={1}>
+                                    <Text style={[styles.patientName, isSelected && styles.selectedPatientName]}>
                                         {patient.username}
                                     </Text>
                                 </TouchableOpacity>
@@ -221,166 +320,184 @@ export default function CaregiverDashboard() {
                         }}
                         ListEmptyComponent={
                             <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>No linked Patients Found.</Text>
+                                <Text style={styles.emptyText}>No linked Patients Found!</Text>
                             </View>
                         }
                     />
                 )}
             </View>
 
-            <View style={styles.contentBody}>
-                {isFetching ? (
-                    <View style={styles.center}>
-                        <ActivityIndicator size="large" color="#2563EB" />
-                    </View>
-                ) : activePatient ? (
-                    <>
-                        <View style={styles.sectionHeaderRowInline}>
-                            {filterType === "today" ? (
-                                <Text style={styles.bodySectionHeader}>Today's Medications</Text>
-                            ) : (
-                                <Text style={styles.bodySectionHeader}>All Medications</Text>
-                            )}
-                            <TouchableOpacity
-                                style={styles.viewLogsButton}
-                                onPress={() => {
-                                    router.push({
-                                        pathname: '/(caregiver)/patientLogs',
-                                        params: {
-                                            id: activePatient
-                                        }
-                                    });
+            <View style={styles.body}>
+                {/* Date selector */}
+                <View style={styles.dateSelector}>
+                    {/* previous day */}
+                    <TouchableOpacity onPress={() => changeDate(-1)} style={styles.dateNavButton}>
+                        <Text style={styles.dateNavText}>{"<"}</Text>
+                    </TouchableOpacity>
+
+                    {/* Current Day, show calendar when clicked */}
+                    <Pressable onPress={() => setIsCalendarVisible(true)} style={styles.dateInfo}>
+                        <Text style={styles.dateTitle}>{selectedDate.toDateString() === new Date().toDateString() ? "Today" : selectedDate.toLocaleDateString('en-US', { weekday: "long" })}</Text>
+                        <Text style={styles.dateSubtitle}>{getLocalDateString(selectedDate)} ▾</Text>
+                    </Pressable>
+
+                    {/* Next Day */}
+                    <TouchableOpacity onPress={() => changeDate(1)} style={styles.dateNavButton}>
+                        <Text style={styles.dateNavText}>{">"}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Calendar */}
+                <Modal
+                    visible={isCalendarVisible}
+                    animationType="fade"
+                    transparent={true}
+                    onRequestClose={() => setIsCalendarVisible(false)}
+                >
+                    <View style={styles.modalOverlay}>
+                        <Pressable style={styles.contentCloser} onPress={() => setIsCalendarVisible(false)} />
+                        <View style={styles.calendarContainer}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Select Date</Text>
+                                <TouchableOpacity onPress={() => setIsCalendarVisible(false)}>
+                                    <Text style={styles.closeText}>Close</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <Calendar
+                                current={getLocalDateString(selectedDate)}
+                                markedDates={markedDates}
+                                onDayPress={(day) => {
+                                    setSelectedDate(new Date(day.timestamp));
+                                    setIsCalendarVisible(false);
                                 }}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.viewLogsButtonText}>View history</Text>
-                            </TouchableOpacity>
+                                theme={{
+                                    selectedDayBackgroundColor: "#2563EB",
+                                    todayTextColor: "#2563EB",
+                                    arrowColor: "#2563EB",
+                                    dotColor: "#2563EB"
+                                }}
+                            />
                         </View>
-                        <FlatList
-                            data={filterMedications}
-                            keyExtractor={(item) => item._id}
-                            contentContainerStyle={styles.medsListContainer}
-                            showsVerticalScrollIndicator={false}
-                            ListHeaderComponent={
-                                <View>
-                                    <View style={styles.filterChipContainerTray}>
-                                        <TouchableOpacity
-                                            style={[styles.interactiveChip, activeOnly && styles.activeChipSelect]}
-                                            onPress={() => setActiveOnly(!activeOnly)}
-                                            activeOpacity={0.8}
-                                        >
-                                            <Text style={[styles.chipLabelText, activeOnly && styles.activeChipLabelSelect]}>Active only</Text>
-                                        </TouchableOpacity>
+                    </View>
+                </Modal>
 
-                                        <View style={styles.verticalChipDividerLine} />
+                <Text style={styles.sectionTitle}>Medications for this day:</Text>
+                {isFetching ? (
+                    // loader icon if medications not ready
+                    <ActivityIndicator color="#2563EB" />
+                ) : (
+                    // medication cards list
+                    <FlatList
+                        data={doseCards}
+                        keyExtractor={(item) => item.doseKey}
+                        showsVerticalScrollIndicator={false}
+                        renderItem={({ item: doseCard }) => {
+                            const { medication: item, scheduledTime: currentSlotTime, isPRN, doseKey } = doseCard;
+                            const isLowStock = item.inventory?.trackingEnabled && ((item.inventory.currentQuantity ?? 0) <= (item.inventory.refillThreshold ?? 0));
+                            const activeDay = getLocalDateString(new Date(selectedDate));
 
-                                        <TouchableOpacity
-                                            style={[styles.interactiveChip, filterType === "all" && styles.activeChipSelect]}
-                                            onPress={() => setFilterType('all')}
-                                            activeOpacity={0.8}
-                                        >
-                                            <Text style={[styles.chipLabelText, filterType === 'all' && styles.activeChipLabelSelect]}>All Meds</Text>
-                                        </TouchableOpacity>
+                            const existingLog = !isPRN
+                                ? adherenceLogs.find(log => {
+                                    const parsedLogDateStr = getLocalDateString(new Date(log.logDate));
+                                    const loggedMedId = typeof log.medication === "object" ? log.medication._id : log.medication;
 
-                                        <TouchableOpacity
-                                            style={[styles.interactiveChip, filterType === "today" && styles.activeChipSelect]}
-                                            onPress={() => setFilterType('today')}
-                                            activeOpacity={0.8}
-                                        >
-                                            <Text style={[styles.chipLabelText, filterType === 'today' && styles.activeChipLabelSelect]}>Today</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            }
-                            renderItem={({ item }) => {
-                                const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1);
+                                    return loggedMedId === item._id &&
+                                        log.scheduledTime === currentSlotTime &&
+                                        parsedLogDateStr === activeDay;
+                                })
+                                : undefined;
 
-                                return (
-                                    <View style={[styles.medCard, !item.isActive && styles.inactiveMedCard]}>
-                                        <View style={styles.medHeaderRow}>
-                                            <View style={styles.medTitleContainer}>
-                                                <Text style={styles.medNameText}>{item.name}</Text>
-                                                <Text style={styles.medTypeText}>
-                                                    {capitalize(item.type)} • {item.dosage.value} {item.dosage.unit}
-                                                </Text>
-                                            </View>
-                                            <View style={[styles.statusBadge, item.isActive ? styles.activeBadge : styles.inactiveBadge]}>
-                                                <Text style={[styles.statusBadgeText, item.isActive ? styles.activeBadgeText : styles.inactiveBadgeText]}>
-                                                    {item.isActive ? "Active" : "Inactive"}
-                                                </Text>
-                                            </View>
-                                        </View>
+                            const prnLogsToday = isPRN
+                                ? adherenceLogs.filter(log => {
+                                    const parsedLogDateStr = getLocalDateString(new Date(log.logDate));
+                                    const loggedMedId = typeof log.medication === 'object' ? log.medication._id : log.medication;
+                                    return loggedMedId === item._id && parsedLogDateStr === activeDay;
+                                }).sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime))
+                                : [];
 
-                                        <View style={styles.medDetailSection}>
-                                            <Text style={styles.detailLabelText}>Frequency Pattern</Text>
-                                            <Text style={styles.detailValueText}>
-                                                {capitalize(item.frequency.type)}
-                                                {item.frequency.type === 'specific days' && item.frequency.specificDays ?
-                                                    `(${item.frequency.specificDays?.map(d => capitalize(d).substring(0, 3)).join(', ')})`
-                                                    : ""}
-                                                {item.frequency.type === "interval" && item.frequency.intervalDays ?
-                                                    `(Evert ${item.frequency.intervalDays} days)`
-                                                    : ""}
+                            return (
+                                <View style={styles.medCard}>
+                                    <View style={styles.cardMainRow}>
+                                        <View>
+                                            <Text style={styles.medName}>{item.name}</Text>
+                                            <Text style={styles.medSubtext}>
+                                                {item.dosage.value} {item.dosage.unit} • {item.type}
                                             </Text>
                                         </View>
 
-                                        <View style={styles.metaInfoGrid}>
-                                            <View style={styles.metaGridColumn}>
-                                                <Text style={styles.detailLabelText}>Start Date</Text>
-                                                <Text style={styles.metaValueText}>{getLocalDateString(new Date(item.startDate))}</Text>
+                                        {!isPRN && existingLog && (
+                                            <View style={[
+                                                styles.statusBadge,
+                                                existingLog.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }
+                                            ]}>
+                                                <Text style={styles.statusBadgeText}>{existingLog.status.toUpperCase()}</Text>
                                             </View>
-                                            {item.endDate && (
-                                                <View style={styles.metaGridColumn}>
-                                                    <Text style={styles.detailLabelText}>End Date</Text>
-                                                    <Text style={styles.metaValueText}>{getLocalDateString(new Date(item.endDate))}</Text>
-                                                </View>
-                                            )}
-                                        </View>
+                                        )}
 
-                                        {item.doctor?.name ? (
-                                            <View style={styles.doctorWrapperContainer}>
-                                                <Text style={styles.detailLabelText}>Prescribing Doctor</Text>
-                                                <Text style={styles.doctorNameText}>Dr. {item.doctor.name}</Text>
-                                                {item.doctor.phone ? <Text style={styles.doctorPhoneText}>{item.doctor.phone}</Text> : null}
-                                            </View>
-                                        ) : null}
-
-                                        <View style={styles.medFooterRow}>
-                                            <View style={styles.instructionChip}>
-                                                <Text style={styles.instructionChipText}>{capitalize(item.instructions)}</Text>
-                                            </View>
-                                            <View style={styles.timeScheduleWrapper}>
-                                                {item.schedule.map((sch, index) => (
-                                                    <View key={index} style={styles.timeTag}>
-                                                        <Text style={styles.timeTagText}>{sch.time}</Text>
+                                        {isPRN && prnLogsToday.length > 0 && (
+                                            <View style={styles.prnHistoryContainer}>
+                                                <Text style={styles.detailLabel}>Logged Today</Text>
+                                                {prnLogsToday.map(log => (
+                                                    <View key={log._id} style={[styles.statusBadge, log.status === 'taken' ? { backgroundColor: "#16A34A" } : { backgroundColor: "#EA580C" }]}>
+                                                        <Text style={styles.statusBadgeText}>
+                                                            {log.status.toUpperCase()} • {log.scheduledTime.slice(0, 5)}
+                                                        </Text>
                                                     </View>
                                                 ))}
                                             </View>
+                                        )}
+
+                                        <View style={styles.timeBadge}>
+                                            <Text style={styles.timeText}>
+                                                {isPRN ? "As needed" : currentSlotTime}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.divider} />
+
+                                    { /* Row 1: Instructions and supply */}
+                                    <View style={styles.detailsGridRow}>
+                                        <View style={styles.detailColumn}>
+                                            <Text style={styles.detailLabel}>Instructions</Text>
+                                            <Text style={styles.detailValue}>{item.instructions}</Text>
                                         </View>
 
-                                        {item.inventory?.trackingEnabled && (item.inventory.currentQuantity ?? 0) <= (item.inventory.refillThreshold ?? 0) && (
-                                            <View style={styles.lowStockWarning}>
-                                                <Text style={styles.lowStockWarningText}>
-                                                    Low Stock Alert: only {item.inventory.currentQuantity} remaining
+                                        {item.inventory?.trackingEnabled && (
+                                            <View style={styles.detailColumn}>
+                                                <Text style={styles.detailLabel}>Remaining Supply</Text>
+                                                <Text style={[styles.detailValue, isLowStock && styles.lowStockText]}>
+                                                    {item.inventory.currentQuantity} units {isLowStock && '(low)'}
                                                 </Text>
                                             </View>
                                         )}
                                     </View>
-                                )
-                            }}
-                            ListEmptyComponent={
-                                <View style={styles.noDataView}>
-                                    <Text style={styles.emptyText}>No Medications prescribed for this patient.</Text>
+
+                                    {/* Row 2: Doctor and notes */}
+                                    <View style={styles.detailsGridRow}>
+                                        {item.doctor?.name && (
+                                            <View style={styles.detailColumn}>
+                                                <Text style={styles.detailLabel}>Prescribing doctor</Text>
+                                                <Text style={styles.detailValue}>{item.doctor.name} {item.doctor.phone ? `• ${item.doctor.phone}` : ""}</Text>
+                                            </View>
+                                        )}
+
+                                        {item.notes && (
+                                            <View style={styles.detailColumn}>
+                                                <Text style={styles.detailLabel}>Personal Notes</Text>
+                                                <Text style={styles.detailValue}>{item.notes}</Text>
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
-                            }
-                        />
-                    </>
-                ) : (
-                    <Text style={styles.placeholderText}>Select a patient to begin overview</Text>
+                            )
+                        }}
+                    />
                 )}
             </View>
+
         </View>
-    );
+    )
 }
 
 const styles = StyleSheet.create({
@@ -393,6 +510,8 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center"
     },
+
+    // patient selection section
     selectorWrapper: {
         paddingVertical: 16,
         backgroundColor: "#F9FAFB",
@@ -464,236 +583,158 @@ const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#6B7280"
     },
-    contentBody: {
+    body: {
         flex: 1,
-        justifyContent: "flex-start",
-        alignItems: "stretch",
-    },
-    placeholderText: {
-        color: "#6B7280",
-        fontSize: 14
-    },
-    medsListContainer: {
-        padding: 16,
-        paddingBottom: 32,
-    },
-    sectionHeaderRowInline: {
-        flexDirection: "row",
-        justifyContent: 'space-between',
-        alignItems: "center",
-        marginBottom: 12,
-        width: "100%"
-    },
-    bodySectionHeader: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#1F2937",
         paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 6
+        paddingTop: 20,
     },
-    viewLogsButton: {
-        paddingVertical: 4,
-        paddingHorizontal: 8,
-        borderRadius: 6,
-        backgroundColor: "#EFF6FF"
-    },
-    viewLogsButtonText: {
-        color: "#2563EB",
-        fontSize: 13,
-        fontWeight: "600",
-    },
-    medCard: {
+
+    // selected day section
+    dateSelector: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         backgroundColor: "#FFFFFF",
+        padding: 15,
         borderRadius: 12,
-        padding: 16,
-        marginBottom: 12,
+        marginBottom: 20,
         borderWidth: 1,
-        borderColor: "#E5E7EB",
-        elevation: 1,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-    },
-    inactiveMedCard: {
-        opacity: 0.6,
-        backgroundColor: "#F9FAFB"
-    },
-    medHeaderRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 12
-    },
-    medTitleContainer: {
-        flex: 1,
-        paddingRight: 8
-    },
-    medNameText: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: "#1F2937"
-    },
-    medTypeText: {
-        fontSize: 13,
-        color: "#6B7280",
-        marginTop: 2
-    },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6
-    },
-    activeBadge: {
-        backgroundColor: "#DCFCE7"
-    },
-    inactiveBadge: {
-        backgroundColor: "#F3F4F6"
-    },
-    statusBadgeText: {
-        fontSize: 11,
-        fontWeight: "600"
-    },
-    activeBadgeText: {
-        color: "#15803D"
-    },
-    inactiveBadgeText: {
-        color: "#4B5563"
-    },
-    medDetailSection: {
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
         borderColor: "#F3F4F6",
-        paddingVertical: 8,
-        marginBottom: 12
+        elevation: 2,
     },
-    detailLabelText: {
-        fontSize: 11,
-        fontWeight: "500",
-        color: "#9CA3AF",
-        textTransform: "uppercase"
-    },
-    detailValueText: {
-        fontSize: 14,
-        fontWeight: "500",
-        color: "#374151",
-        marginTop: 2
-    },
-    medFooterRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center"
-    },
-    instructionChip: {
+    dateNavButton: {
+        width: 40,
+        height: 40,
         backgroundColor: "#EFF6FF",
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: "#DBEAFE"
+        borderRadius: 20,
+        justifyContent: "center",
+        alignItems: "center",
     },
-    instructionChipText: {
-        fontSize: 12,
-        fontWeight: "500",
+    dateNavText: {
+        fontSize: 18,
+        fontWeight: "bold",
         color: "#2563EB"
     },
-    timeScheduleWrapper: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 4
-    },
-    timeTag: {
-        backgroundColor: "#F3F4F6",
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4
-    },
-    timeTagText: {
-        fontSize: 12,
-        fontWeight: "600",
-        color: "#374151"
-    },
-    lowStockWarning: {
-        backgroundColor: "#FEF2F2",
-        padding: 8,
-        borderRadius: 6,
-        marginTop: 12,
-        borderWidth: 1,
-        borderColor: "#FEE2E2"
-    },
-    lowStockWarningText: {
-        color: "#DC2626",
-        fontSize: 12,
-        fontWeight: "500"
-    },
-    noDataView: {
-        paddingVertical: 32
-    },
-    filterChipContainerTray: {
-        flexDirection: "row",
+    dateInfo: {
         alignItems: "center",
-        gap: 8,
-        marginBottom: 16,
-        paddingVertical: 4
     },
-    interactiveChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        backgroundColor: "#F3F4F6",
-        borderWidth: 1,
-        borderColor: "#E5E7EB"
+    dateTitle: {
+        fontSize: 16,
+        fontWeight: "700",
+        color: "#1F2937",
     },
-    activeChipSelect: {
-        backgroundColor: "#2563EB",
-        borderColor: "#2563EB"
-    },
-    chipLabelText: {
-        fontSize: 13,
-        fontWeight: "600",
-        color: "#4B5563"
-    },
-    activeChipLabelSelect: {
-        color: "#FFFFFF"
-    },
-    verticalChipDividerLine: {
-        width: 1,
-        height: 20,
-        backgroundColor: "#E5E7EB",
-        marginHorizontal: 4
-    },
-    metaInfoGrid: {
-        flexDirection: "row",
-        gap: 16,
-        marginBottom: 12
-    },
-    metaGridColumn: {
-        flex: 1
-    },
-    metaValueText: {
-        fontSize: 13,
-        fontWeight: "500",
-        color: "#4B5563",
-        marginTop: 2
-    },
-    doctorWrapperContainer: {
-        backgroundColor: "#F9FAFB",
-        borderRadius: 8,
-        padding: 10,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: "#F3F4F6"
-    },
-    doctorNameText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: "#374151",
-        marginTop: 2
-    },
-    doctorPhoneText: {
+    dateSubtitle: {
         fontSize: 12,
         color: "#6B7280",
-        marginTop: 1
-    }
-});
+    },
+
+    // calendar
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "#00000080",
+        justifyContent: "flex-end",
+    },
+    contentCloser: {
+        flex: 1,
+    },
+    calendarContainer: {
+        backgroundColor: "#FFFFFF",
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: 30,
+        elevation: 12,
+    },
+    modalHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: "#F3F4F6",
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+    },
+    closeText: {
+        color: "#2563EB",
+        fontWeight: '600',
+    },
+
+    // card list
+    medCard: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: "#F3F4F6",
+        elevation: 2,
+    },
+    cardMainRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
+    medName: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#1F2937",
+    },
+    medSubtext: {
+        fontSize: 14,
+        color: "#2563EB",
+        marginTop: 2,
+    },
+    statusBadge: {
+        paddingVertical: 4,
+        paddingHorizontal: 10,
+        borderRadius: 6,
+        alignSelf: "flex-start",
+        marginBottom: 10
+    },
+    statusBadgeText: {
+        color: "#FFFFFF",
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    prnHistoryContainer: {
+        marginBottom: 10,
+    },
+    detailLabel: {
+        fontSize: 13,
+        color: "#6B7280",
+        marginBottom: 4,
+    },
+    timeBadge: {
+        backgroundColor: "#EFF6FF",
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    timeText: {
+        color: "#2563EB",
+        fontWeight: "700",
+        fontSize: 12,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: "#F3F4F6",
+        marginBottom: 15,
+    },
+    detailsGridRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginBottom: 12,
+    },
+    detailColumn: {
+        flex: 1
+    },
+    detailValue: {
+        color: "#1F2937",
+        fontWeight: "500",
+    },
+    lowStockText: {
+        color: "#EF4444",
+        fontWeight: "700",
+    },
+})
