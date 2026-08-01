@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ToastAndroid } from 'react-native';
 import { router } from "expo-router";
+
+import { BASE_URL } from '../constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // User structure
@@ -73,6 +75,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const signOut = async () => {
         try {
+            // remove the expo push token from database
+            if (user?.token) {
+                try {
+                    await fetch(`${BASE_URL}/api/users/updateProfile`, {
+                        method: "PUT",
+                        headers: {
+                            "Authorization": `Bearer ${user?.token}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ expoPushToken: null })
+                    });
+                } catch (err) {
+                    console.error("Failed to clear expo token", err);
+                }
+            }
+
             // clear user data from state and local storage
             setUser(null);
             await Promise.all([
