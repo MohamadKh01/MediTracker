@@ -77,6 +77,10 @@ const registerUser = async (req, res) => {
             success: true,
             data: {
                 _id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                expoPushToken: user.expoPushToken,
                 ...decryptedProfile,
                 token: generateToken(user._id),
             }

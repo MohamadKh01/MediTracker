@@ -39,7 +39,7 @@ const getUserProfile = async (req, res) => {
                 role: user.role,
                 expoPushToken: user.expoPushToken,
                 ...decryptedProfile,
-                age: calculatedAge(decryptedProfile.dateOfBirth),
+                age: calculateAge(decryptedProfile.dateOfBirth),
                 createdAt: user.createdAt
             }
         });
