@@ -21,7 +21,7 @@ const encryptDocumentPayload = (dataObject) => {
 
     return {
         encryptedPayload: encrypted.ciphertext,
-        payloadIv: encrypted.iv,
+        payloadIV: encrypted.iv,
         payloadTag: encrypted.tag,
         payloadDek: wrappedDek.encryptedDek,
         payloadDekIv: wrappedDek.iv,
