@@ -1,5 +1,7 @@
 const Medications = require("../models/Medications");
 
+const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
+
 // Route    POST /api/medications       private access
 const createMedication = async (req, res) => {
     try {
@@ -17,8 +19,7 @@ const createMedication = async (req, res) => {
             return res.status(400).json({ success: false, message: "Frequency type is required" });
         }
 
-        const medicationData = {
-            user: req.user._id,
+        const payloadToEncrypt = {
             name,
             type,
             dosage,
@@ -32,9 +33,24 @@ const createMedication = async (req, res) => {
             notes
         };
 
-        const medication = await Medications.create(medicationData);
+        const encryptedEnvelope = encryptDocumentPayload(payloadToEncrypt);
 
-        return res.status(201).json({ success: true, data: medication });
+        const medication = await Medications.create({
+            user: req.user._id,
+            isActive: true,
+            ...encryptedEnvelope
+        });
+
+        const decryptedData = {
+            _id: medication._id,
+            user: medication.user,
+            isActive: medication.isActive,
+            ...decryptDocumentPayload(medication),
+            createdAt: medication.createdAt,
+            updatedAt: medication.updatedAt,
+        }
+
+        return res.status(201).json({ success: true, data: decryptedData });
     } catch (err) {
         console.error("Create medication error: ", err);
         return res.status(500).json({ success: false, message: "Server error" });
@@ -46,10 +62,22 @@ const getMyMedications = async (req, res) => {
     try {
         const medications = await Medications.find({ user: req.user._id, isActive: true });
 
+        const decryptedMedications = medications.map(med => {
+            const medObj = med.toObject();
+            return {
+                _id: medObj._id,
+                user: medObj.user,
+                isActive: medObj.isActive,
+                ...decryptDocumentPayload(medObj),
+                createdAt: medObj.createdAt,
+                updatedAt: medObj.updatedAt
+            };
+        });
+
         return res.status(200).json({
             success: true,
-            count: medications.length,
-            data: medications
+            count: decryptedMedications.length,
+            data: decryptedMedications
         });
     } catch (err) {
         console.error("Get medications error: ", err);
@@ -68,13 +96,41 @@ const updateMedication = async (req, res) => {
             return res.status(404).json({ success: false, message: "Medication not found" });
         }
 
-        const updatedMedication = await Medications.findByIdAndUpdate(
-            medicationId,
-            { $set: req.body },
-            { returnDocument: "after", runValidators: true }
-        );
+        const currentPayload = decryptDocumentPayload(medication);
 
-        return res.status(200).json({ success: true, data: updatedMedication });
+        const updatedPayload = {
+            name: req.body.name !== undefined ? req.body.name : currentPayload.name,
+            type: req.body.type !== undefined ? req.body.type : currentPayload.type,
+            dosage: req.body.dosage !== undefined ? req.body.dosage : currentPayload.dosage,
+            frequency: req.body.frequency !== undefined ? req.body.frequency : currentPayload.frequency,
+            schedule: req.body.schedule !== undefined ? req.body.schedule : currentPayload.schedule,
+            startDate: req.body.startDate !== undefined ? new Date(req.body.startDate) : currentPayload.startDate,
+            endDate: req.body.endDate !== undefined ? new Date(req.body.endDate) : currentPayload.endDate,
+            inventory: req.body.inventory !== undefined ? req.body.inventory : currentPayload.inventory,
+            instructions: req.body.instructions !== undefined ? req.body.instructions : currentPayload.instructions,
+            doctor: req.body.doctor !== undefined ? req.body.doctor : currentPayload.doctor,
+            notes: req.body.notes !== undefined ? req.body.notes : currentPayload.notes,
+        };
+
+        const newEncryptedEnvelope = encryptDocumentPayload(updatedPayload);
+        medication.set(newEncryptedEnvelope);
+
+        if (req.body.isActive !== undefined) {
+            medication.isActive = req.body.isActive;
+        }
+
+        await medication.save();
+
+        const decryptedData = {
+            _id: medication._id,
+            user: medication.user,
+            isActive: medication.isActive,
+            ...decryptDocumentPayload(medication),
+            createdAt: medication.createdAt,
+            updatedAt: medication.updatedAt
+        };
+
+        return res.status(200).json({ success: true, data: decryptedData });
     } catch (err) {
         console.error("Update medication error: ", err);
         return res.status(500).json({ success: false, message: "Server error" });

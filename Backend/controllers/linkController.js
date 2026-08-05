@@ -1,6 +1,24 @@
 const Users = require('../models/Users');
 const Links = require('../models/CaregiverLink');
 
+const { decryptDocumentPayload } = require('../utils/encryptionService');
+
+// helper function to calculate age dynamically from DOB
+const calculateAge = (dob) => {
+    if (!dob) {
+        return null;
+    }
+
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const balancedMonth = today.getMonth() - birthDate.getMonth();
+    if (balancedMonth < 0 || (balancedMonth === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+    }
+    return calculatedAge;
+}
+
 // Route    POST /api/link/invite       private access
 const sendInvitation = async (req, res) => {
     try {
@@ -146,10 +164,29 @@ const getLinks = async (req, res) => {
         }
 
         const connections = await Links.find(query)
-            .populate(populateTarget, 'name username role phone gender bloodType age')
+            .populate(populateTarget)
             .sort({ updatedAt: -1 });
 
-        return res.status(200).json({ success: true, count: connections.length, data: connections });
+        const decryptedConnections = connections.map(conn => {
+            const connObj = conn.toObject();
+            const targetUserDoc = connObj[populateTarget];
+
+            if (targetUserDoc && targetUserDoc.encryptedPayload) {
+                const decryptedProfile = decryptDocumentPayload(targetUserDoc);
+                connObj[populateTarget] = {
+                    _id: targetUserDoc._id,
+                    username: targetUserDoc.username,
+                    email: targetUserDoc.email,
+                    role: targetUserDoc.role,
+                    ...decryptedProfile,
+                    age: calculateAge(decryptedProfile.dateOfBirth),
+                };
+            }
+
+            return connObj;
+        })
+
+        return res.status(200).json({ success: true, count: decryptedConnections.length, data: decryptedConnections });
     } catch (err) {
         console.error("Query link metrics error: ", err);
         return res.status(500).json({ success: false, message: "Server error" });

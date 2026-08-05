@@ -1,6 +1,24 @@
 const Users = require('../models/Users');
 const generateToken = require('../utils/generateToken');
 
+const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
+
+// helper function to calculate age dynamically from DOB
+const calculateAge = (dob) => {
+    if (!dob) {
+        return null;
+    }
+
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const balancedMonth = today.getMonth() - birthDate.getMonth();
+    if (balancedMonth < 0 || (balancedMonth === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+    }
+    return calculatedAge;
+}
+
 // Route    GET /api/users/profile      private access
 const getUserProfile = async (req, res) => {
     try {
@@ -10,18 +28,18 @@ const getUserProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
+        const decryptedProfile = decryptDocumentPayload(user);
+
         return res.status(200).json({
             success: true,
             data: {
-                name: user.name,
+                _id: user._id,
                 username: user.username,
                 email: user.email,
                 role: user.role,
-                dateOfBirth: user.dateOfBirth,
-                gender: user.gender,
-                age: user.age,
-                bloodType: user.bloodType,
-                phone: user.phone,
+                expoPushToken: user.expoPushToken,
+                ...decryptedProfile,
+                age: calculatedAge(decryptedProfile.dateOfBirth),
                 createdAt: user.createdAt
             }
         });
@@ -57,41 +75,45 @@ const updateUserProfile = async (req, res) => {
             }
         }
 
+        // update plaintext fields if provided
+        if (req.body.expoPushToken !== undefined) {
+            user.expoPushToken = req.body.expoPushToken;
+        }
+
+        if (req.body.username !== undefined) {
+            user.username = req.body.username;
+        }
+
+        const currentProfile = decryptDocumentPayload(user);
+
         // prevent injection attacks (for example cannot inject role change)
-        const safeUpdates = {
-            name: req.body.name,
-            username: req.body.username,
-            phone: req.body.phone,
-            dateOfBirth: req.body.dateOfBirth,
-            gender: req.body.gender,
-            bloodType: req.body.bloodType,
-            expoPushToken: req.body.expoPushToken
+        const updatedProfilePayload = {
+            name: req.body.name !== undefined ? req.body.name : currentProfile.name,
+            phone: req.body.phone !== undefined ? req.body.phone : currentProfile.phone,
+            dateOfBirth: req.body.dateOfBirth !== undefined ? (req.body.dateOfBirth ? new Date(req.body.dateOfBirth) : null) : currentProfile.dateOfBirth,
+            gender: req.body.gender !== undefined ? req.body.gender : currentProfile.gender,
+            bloodType: req.body.bloodType !== undefined ? req.body.bloodType : currentProfile.bloodType,
         };
 
-        // delete undefined values
-        Object.keys(safeUpdates).forEach(key => safeUpdates[key] === undefined && delete safeUpdates[key]);
+        const newEncryptedEnvelope = encryptDocumentPayload(updatedProfilePayload);
+        user.set(newEncryptedEnvelope);
 
-        const updatedUser = await Users.findByIdAndUpdate(
-            req.user._id,
-            safeUpdates,
-            { returnDocument: 'after', runValidators: true }
-        );
+        await user.save();
+
+        const finalDecryptedProfile = decryptDocumentPayload(user);
 
         return res.status(200).json({
             success: true,
             data: {
-                _id: updatedUser._id,
-                name: updatedUser.name,
-                username: updatedUser.username,
-                email: updatedUser.email,
-                phone: updatedUser.phone,
-                role: updatedUser.role,
-                dateOfBirth: updatedUser.dateOfBirth,
-                age: updatedUser.age,
-                gender: updatedUser.gender,
-                bloodType: updatedUser.bloodType,
-                createdAt: updatedUser.createdAt,
-                token: generateToken(updatedUser._id),
+                _id: user._id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                expoPushToken: user.expoPushToken,
+                ...finalDecryptedProfile,
+                age: calculatedAge(finalDecryptedProfile.dateOfBirth),
+                createdAt: user.createdAt,
+                token: generateToken(user._id),
             }
         });
     } catch (err) {

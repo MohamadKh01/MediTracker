@@ -21,18 +21,30 @@ const AdherenceLogSchema = new mongoose.Schema({
         type: Date,
         required: true,
     },
-    status: {
+    encryptedPayload: {
         type: String,
-        enum: ['taken', 'skipped', 'missed'],
-        required: [true, 'status is required'],
+        required: [true, "Encrypted payload is required"],
     },
-    takenAt: {
-        type: Date,
-    },
-    notes: {
+    payloadIV: {
         type: String,
-        trim: true,
-    }
+        required: [true, "Payload IV is required"],
+    },
+    payloadTag: {
+        type: String,
+        required: [true, "Payload auth tag is required"],
+    },
+    payloadDek: {
+        type: String,
+        required: [true, "Payload DEK is required"],
+    },
+    payloadDekIv: {
+        type: String,
+        required: [true, "DEK IV is required"],
+    },
+    payloadDekTag: {
+        type: String,
+        required: [true, "DEK auth tag is required"],
+    },
 }, {
     timestamps: true
 });

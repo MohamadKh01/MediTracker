@@ -1,5 +1,23 @@
 const Users = require('../models/Users');
+
 const generateToken = require('../utils/generateToken');
+const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
+
+// helper function to calculate age dynamically from DOB
+const calculateAge = (dob) => {
+    if (!dob) {
+        return null;
+    }
+
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+    const balancedMonth = today.getMonth() - birthDate.getMonth();
+    if (balancedMonth < 0 || (balancedMonth === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+    }
+    return calculatedAge;
+}
 
 // Route    POST /api/auth/register     public access
 const registerUser = async (req, res) => {
@@ -13,7 +31,7 @@ const registerUser = async (req, res) => {
 
         // Password strength validation
         const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-        if(!passRegex.test(password)) {
+        if (!passRegex.test(password)) {
             return res.status(400).json({ success: false, message: "Password must be at least 8 characters and contain at least 1 uppercase, 1 lowercase, one number and one special character" });
         }
 
@@ -32,23 +50,35 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ success: false, message: "Email registered with another account" });
         }
 
+        // encrypt profile data payload
+        const profilePayload = {
+            name,
+            phone: phone || null,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+            gender: gender || "prefer not to say",
+            bloodType: bloodType || "not specified"
+        }
+        const encryptedEnvelope = encryptDocumentPayload(profilePayload);
+
         // create user
-        const user = await Users.create({ name, username: cleanUsername, email: cleanEmail, password, role, phone });
+        const user = await Users.create({
+            username: cleanUsername,
+            email: cleanEmail,
+            password,
+            role,
+            expoPushToken: req.body.expoPushToken || null,
+            ...encryptedEnvelope
+        });
+
+        const decryptedProile = decryptDocumentPayload(user);
 
         // if user created successfully, return userdata and token (some data are defaults)
         return res.status(201).json({
             success: true,
             data: {
                 _id: user.id,
-                name: user.name,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                phone: user.phone,
-                dateOfBirth: user.dateOfBirth,
-                gender: user.gender,
-                bloodType: user.bloodType,
-                age: user.age,
+                ...decryptedProile,
+                age: calculateAge(decryptedProfile.dateOfBirth),
                 token: generateToken(user._id),
             }
         });
@@ -82,19 +112,14 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ success: false, message: "Invalid password" });
         }
 
+        const decryptedProfile = decryptDocumentPayload(user);
+
         return res.status(200).json({
             success: true,
             data: {
                 _id: user.id,
-                name: user.name,
-                username: user.username,
-                email: user.email,
-                role: user.role,
-                phone: user.phone,
-                dateOfBirth: user.dateOfBirth,
-                gender: user.gender,
-                bloodType: user.bloodType,
-                age: user.age,
+                ...decryptedProfile,
+                age: calculateAge(decryptedProfile.dateOfBirth),
                 token: generateToken(user._id),
             }
         });
