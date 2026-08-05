@@ -111,7 +111,7 @@ const updateUserProfile = async (req, res) => {
                 role: user.role,
                 expoPushToken: user.expoPushToken,
                 ...finalDecryptedProfile,
-                age: calculatedAge(finalDecryptedProfile.dateOfBirth),
+                age: calculateAge(finalDecryptedProfile.dateOfBirth),
                 createdAt: user.createdAt,
                 token: generateToken(user._id),
             }
