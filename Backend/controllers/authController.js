@@ -54,9 +54,9 @@ const registerUser = async (req, res) => {
         const profilePayload = {
             name,
             phone: phone || null,
-            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-            gender: gender || "prefer not to say",
-            bloodType: bloodType || "not specified"
+            dateOfBirth: null,
+            gender: "prefer not to say",
+            bloodType: "not specified"
         }
         const encryptedEnvelope = encryptDocumentPayload(profilePayload);
 
@@ -70,21 +70,20 @@ const registerUser = async (req, res) => {
             ...encryptedEnvelope
         });
 
-        const decryptedProile = decryptDocumentPayload(user);
+        const decryptedProfile = decryptDocumentPayload(user);
 
         // if user created successfully, return userdata and token (some data are defaults)
         return res.status(201).json({
             success: true,
             data: {
                 _id: user.id,
-                ...decryptedProile,
-                age: calculateAge(decryptedProfile.dateOfBirth),
+                ...decryptedProfile,
                 token: generateToken(user._id),
             }
         });
     } catch (err) {
         console.error("Registration error: ", err);
-        return res.status(500).json({ message: "Server error" });
+        return res.status(500).json({ success: false, message: "Server error" });
     }
 };
 
@@ -125,7 +124,7 @@ const loginUser = async (req, res) => {
         });
     } catch (err) {
         console.error("Login error: ", err);
-        return res.status(500).json({ success: true, message: "Server error" });
+        return res.status(500).json({ success: false, message: "Server error" });
     }
 };
 

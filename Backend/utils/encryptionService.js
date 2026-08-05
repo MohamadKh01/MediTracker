@@ -1,9 +1,8 @@
 const { generateDek, encryptData, decryptData, encryptDek, decryptDek } = require('./encryption');
 
-const KEK = process.env.ENCRYPTION_KEK
-
 // Encrypt an object into a document envelope format
 const encryptDocumentPayload = (dataObject) => {
+    const KEK = process.env.ENCRYPTION_KEK
     if (!KEK) {
         throw new Error('ENCRYPTION KEK is missing');
     }
@@ -21,7 +20,7 @@ const encryptDocumentPayload = (dataObject) => {
 
     return {
         encryptedPayload: encrypted.ciphertext,
-        payloadIv: encrypted.iv,
+        payloadIV: encrypted.iv,
         payloadTag: encrypted.tag,
         payloadDek: wrappedDek.encryptedDek,
         payloadDekIv: wrappedDek.iv,
@@ -31,6 +30,7 @@ const encryptDocumentPayload = (dataObject) => {
 
 // decrypt the dek and the document envelope back into js object
 const decryptDocumentPayload = (doc) => {
+    const KEK = process.env.ENCRYPTION_KEK
     if (!KEK) {
         throw new Error('ENCRYPTION KEK is missing');
     }
@@ -38,7 +38,7 @@ const decryptDocumentPayload = (doc) => {
     const dek = decryptDek(doc.payloadDek, doc.payloadDekIv, doc.payloadDekTag, KEK);
 
     // decrypt the payload ciphertext using the dek
-    const plaintext = decryptData(doc.encryptedPayload, doc.payloadIv, doc.payloadTag, dek);
+    const plaintext = decryptData(doc.encryptedPayload, doc.payloadIV, doc.payloadTag, dek);
 
     // parse back into a JSON object
     return JSON.parse(plaintext);
