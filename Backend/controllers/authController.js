@@ -117,6 +117,10 @@ const loginUser = async (req, res) => {
             success: true,
             data: {
                 _id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                expoPushToken: user.expoPushToken,
                 ...decryptedProfile,
                 age: calculateAge(decryptedProfile.dateOfBirth),
                 token: generateToken(user._id),
