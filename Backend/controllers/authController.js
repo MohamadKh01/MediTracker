@@ -1,23 +1,9 @@
 const Users = require('../models/Users');
 
-const generateToken = require('../utils/generateToken');
+const { generateToken, generateOTP } = require('../utils/generateToken');
 const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
-
-// helper function to calculate age dynamically from DOB
-const calculateAge = (dob) => {
-    if (!dob) {
-        return null;
-    }
-
-    const today = new Date();
-    const birthDate = new Date(dob);
-    let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-    const balancedMonth = today.getMonth() - birthDate.getMonth();
-    if (balancedMonth < 0 || (balancedMonth === 0 && today.getDate() < birthDate.getDate())) {
-        calculatedAge--;
-    }
-    return calculatedAge;
-}
+const { sendVerificationEmail } = require('../utils/emailService');
+const { calculateAge } = require('../utils/helperFunctions');
 
 // Route    POST /api/auth/register     public access
 const registerUser = async (req, res) => {
@@ -50,6 +36,10 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ success: false, message: "Email registered with another account" });
         }
 
+        // generate 6 digits OTP and set 15 min expiration
+        const otpCode = generateOTP();
+        const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+
         // encrypt profile data payload
         const profilePayload = {
             name,
@@ -67,22 +57,19 @@ const registerUser = async (req, res) => {
             password,
             role,
             expoPushToken: req.body.expoPushToken || null,
+            emailVerificationCode: otpCode,
+            emailVerificationExpires: otpExpires,
             ...encryptedEnvelope
         });
 
-        const decryptedProfile = decryptDocumentPayload(user);
+        await sendVerificationEmail(cleanEmail, otpCode);
 
-        // if user created successfully, return userdata and token (some data are defaults)
         return res.status(201).json({
             success: true,
+            message: "Registration successful! Please check your email for the verification code.",
             data: {
-                _id: user.id,
-                username: user.username,
                 email: user.email,
-                role: user.role,
-                expoPushToken: user.expoPushToken,
-                ...decryptedProfile,
-                token: generateToken(user._id),
+                isEmailVerified: user.isEmailVerified
             }
         });
     } catch (err) {
@@ -115,6 +102,10 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ success: false, message: "Invalid password" });
         }
 
+        if (!user.isEmailVerified) {
+            return res.status(403).json({ success: false, isEmailVerified: false, message: "Please verify your email before logging in" });
+        }
+
         const decryptedProfile = decryptDocumentPayload(user);
 
         return res.status(200).json({
@@ -123,6 +114,7 @@ const loginUser = async (req, res) => {
                 _id: user.id,
                 username: user.username,
                 email: user.email,
+                isEmailVerified: user.isEmailVerified,
                 role: user.role,
                 expoPushToken: user.expoPushToken,
                 ...decryptedProfile,
@@ -167,4 +159,77 @@ const changePassword = async (req, res) => {
     }
 }
 
-module.exports = { registerUser, loginUser, changePassword };
+// Route    POST /api/auth/resendVerification      public access
+const resendVerification = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Email is required" });
+        }
+
+        const cleanEmail = email.trim().toLowerCase();
+        const user = await Users.findOne({ email: cleanEmail });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found!" });
+        }
+
+        if (user.isEmailVerified) {
+            return res.status(400).json({ success: false, message: "Email is already verified" });
+        }
+
+        const otpCode = generateOTP();
+        user.emailVerificationCode = otpCode;
+        user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+        await user.save();
+
+        await sendVerificationEmail(cleanEmail, otpCode);
+
+        return res.status(200).json({ success: true, message: "A new verification code has been sent to your email." });
+    } catch (err) {
+        console.error("Resend Verification Error: ", err);
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+// Route    POST /api/auth/verifyEmail     public accesss
+const verifyEmail = async (req, res) => {
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) {
+            return res.status(400).json({ success: false, message: "Email and verification code are required" });
+        }
+
+        const cleanEmail = email.trim().toLowerCase();
+        const user = await Users.findOne({ email: cleanEmail });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.isEmailVerified) {
+            return res.status(200).json({ success: true, message: "Email is already verified!" });
+        }
+
+        if (user.emailVerificationCode !== code.trim()) {
+            return res.status(400).json({ success: false, message: "Invalid verification code" });
+        }
+
+        if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
+            return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
+        }
+
+        user.isEmailVerified = true;
+        user.emailVerificationCode = null;
+        user.emailVerificationExpires = null;
+        await user.save();
+
+        return res.status(200).json({ success: true, message: "Email verified successfully!" });
+    } catch (err) {
+        console.error("Verify email error: ", err);
+        return res.status(500).json({ success: false, message: "Server Error" });
+    }
+}
+
+module.exports = { registerUser, loginUser, changePassword, verifyEmail, resendVerification };
