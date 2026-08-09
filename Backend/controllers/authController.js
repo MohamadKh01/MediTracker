@@ -102,10 +102,6 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ success: false, message: "Invalid password" });
         }
 
-        if (!user.isEmailVerified) {
-            return res.status(403).json({ success: false, isEmailVerified: false, message: "Please verify your email before logging in" });
-        }
-
         const decryptedProfile = decryptDocumentPayload(user);
 
         return res.status(200).json({

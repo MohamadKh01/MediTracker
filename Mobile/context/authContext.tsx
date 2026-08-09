@@ -11,7 +11,6 @@ interface User {
     name: string;
     username: string;
     email: string;
-    isEmailVerified: boolean;
     role: 'patient' | 'caregiver';
     dateOfBirth: string | null;
     age: number | null;
@@ -29,7 +28,6 @@ const AuthContext = createContext<{
     signOut: () => void;
     authenticate: (group: 'patient' | 'caregiver') => void;
     checkLogin: () => void;
-    updateUser: (partialUser: Partial<User>) => Promise<void>;
 } | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -63,42 +61,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(data);
             await AsyncStorage.setItem('userInfo', JSON.stringify(data));
 
-            // check if user is verified
-            if (!data.isEmailVerified) {
-                router.replace('/(auth)/verifyEmail');
-                return;
-            }
-
-            if (router.canDismiss()) {
-                router.dismissAll();
-            }
-
             // redirect based on role
             if (data.role === 'patient') {
                 router.replace('/(patient)/dashboard');
             } else if (data.role === 'caregiver') {
                 router.replace('/(caregiver)/dashboard');
-            } else {
-                ToastAndroid.show("Unknown user role!", ToastAndroid.SHORT);
-                signOut();
             }
         } catch (err) {
             console.error("Sign in storage error: ", err);
             ToastAndroid.show("Failed to securely save login session", ToastAndroid.SHORT);
-        }
-    };
-
-    const updateUser = async (partialUser: Partial<User>) => {
-        if (!user) {
-            return;
-        }
-
-        try {
-            const updatedUser = { ...user, ...partialUser };
-            setUser(updatedUser);
-            await AsyncStorage.setItem('userInfo', JSON.stringify(updatedUser));
-        } catch (err) {
-            console.error("Faile to update user storage: ", err)
         }
     };
 
@@ -156,12 +127,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // used by auth screens to auto redirect user if they are already logged in
     const checkLogin = async () => {
         if (user) {
-            // check if user is verified
-            if (!user.isEmailVerified) {
-                router.replace('/(auth)/verifyEmail');
-                return;
-            }
-
             // clear nav history to prevent user from going back to auth screens
             if (router.canDismiss()) {
                 router.dismissAll();
@@ -180,7 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, signIn, signOut, authenticate, checkLogin, updateUser }}>
+        <AuthContext.Provider value={{ user, isLoading, signIn, signOut, authenticate, checkLogin }}>
             {children}
         </AuthContext.Provider>
     );
