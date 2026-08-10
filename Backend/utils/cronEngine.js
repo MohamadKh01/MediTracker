@@ -35,7 +35,7 @@ const startNotificationCronEngine = () => {
             const { nowTime, pastTime, todayStr, weekdayName } = getSystemTimeMetrics();
             const todayDateObj = new Date(todayStr);
 
-            console.log(`[CRON RUNNER] server time: ${todayDateObj} | checking for meds at: ${todayStr}`);
+            console.log(`[CRON RUNNER] server time: ${todayStr} | checking for meds at: ${nowTime}`);
 
             // remind patients when dose is due
             const dueMedications = await Medications.find({

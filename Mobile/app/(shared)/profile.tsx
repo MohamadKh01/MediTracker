@@ -11,6 +11,7 @@ interface UserProfile {
     name: string;
     username: string;
     email: string;
+    isEmailVerified: boolean;
     role: "patient" | "caregiver";
     phone: string;
     dateOfBirth: string | null;
@@ -176,7 +177,7 @@ export default function ProfileScreen() {
         }
     }
 
-    
+
 
     if (localLoading || !profile) {
         return (
@@ -241,7 +242,14 @@ export default function ProfileScreen() {
 
                 <View style={styles.infoRow}>
                     <Text style={styles.fieldLabel}>Email address</Text>
-                    <Text style={[styles.fieldValue, styles.disabledText]}>{profile.email}</Text>
+                    <View style={styles.emailContainer}>
+                        <Text style={[styles.fieldValue, styles.disabledText]}>{profile.email}</Text>
+                        <View style={[styles.roleBadge, profile.isEmailVerified ? styles.verifiedBadge : styles.unverifiedBadge]}>
+                            <Text style={[styles.badgeText, profile.isEmailVerified ? styles.verifiedText : styles.unverifiedText]}>
+                                {profile.isEmailVerified ? "Verified" : "Not Verified"}
+                            </Text>
+                        </View>
+                    </View>
                 </View>
 
                 <View style={styles.infoRow}>
@@ -530,6 +538,32 @@ const styles = StyleSheet.create({
     },
     noBorder: {
         borderBottomWidth: 0,
+    },
+    emailContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    badge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+    },
+    verifiedBadge: {
+        backgroundColor: "#E6F4EA"
+    },
+    unverifiedBadge: {
+        backgroundColor: "#FEF7E0"
+    },
+    badgeText: {
+        fontSize: 12,
+        fontWeight: '600'
+    },
+    verifiedText: {
+        color: '#137333'
+    },
+    unverifiedText: {
+        color: "#B06000"
     },
     fieldLabel: {
         fontSize: 11,

@@ -4,6 +4,7 @@ const { generateToken, generateOTP } = require('../utils/generateToken');
 const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
 const { sendVerificationEmail } = require('../utils/emailService');
 const { calculateAge } = require('../utils/helperFunctions');
+const { resetVerifyEmailLimit } = require('../middleware/rateLimiter');
 
 // Route    POST /api/auth/register     public access
 const registerUser = async (req, res) => {
@@ -181,6 +182,8 @@ const resendVerification = async (req, res) => {
         await user.save();
 
         await sendVerificationEmail(cleanEmail, otpCode);
+
+        resetVerifyEmailLimit(req);
 
         return res.status(200).json({ success: true, message: "A new verification code has been sent to your email." });
     } catch (err) {

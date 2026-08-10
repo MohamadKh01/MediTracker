@@ -4,6 +4,10 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const express = require('express');
 const dotenv = require('dotenv');
+
+// load .env file content into proces.env
+dotenv.config();
+
 const cors = require('cors');
 
 const connectDB = require('./config/db.js');
@@ -21,14 +25,14 @@ const adherenceRoutes = require('./routes/adherenceRoutes.js');
 const linkRoutes = require('./routes/linkRoutes.js');
 const caregiverRoutes = require('./routes/caregiverRoutes.js');
 
-// load .env file content into proces.env
-dotenv.config();
-
 // connect to mongoDB
 connectDB();
 
 // middlewares
 const app = express();
+
+// enable trust proxy for rate limiting on render
+app.set('trust proxy', 1);
 
 // ping route to keep render awake
 app.get('/hp', (req, res) => {

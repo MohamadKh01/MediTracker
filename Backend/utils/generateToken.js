@@ -7,7 +7,7 @@ const generateToken = (id) => {
 
 // generate a random 6 digits code string
 const generateOTP = () => {
-    return Math.floor(100000 + Math.random * 900000).toString();
+    return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
 module.exports = { generateToken, generateOTP };

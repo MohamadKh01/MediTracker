@@ -27,6 +27,7 @@ export default function SharedLayout() {
             >
                 <Stack.Screen name="profile" options={{ title: "Profile" }} />
                 <Stack.Screen name="connections" options={{ title: "Connections" }} />
+                <Stack.Screen name="verifyEmail" options={{ headerShown: false }} />
             </Stack>
         </View>
     )

@@ -10,6 +10,8 @@ interface verifyEmailProps {
 }
 
 const RESEND_CD = 60;
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_CD = 300;
 
 export default function VerifyEmail({ email, onSuccess }: verifyEmailProps) {
     const insets = useSafeAreaInsets();
@@ -18,21 +20,63 @@ export default function VerifyEmail({ email, onSuccess }: verifyEmailProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isResending, setIsResending] = useState(false);
     const [cooldown, setCooldown] = useState(0);
+    const [failedAttempts, setFailedAttempts] = useState(0);
+    const [lockoutTimer, setLockoutTimer] = useState(0);
 
+    // handle resend cooldown
     useEffect(() => {
-        let timer: ReturnType<typeof setTimeout>;
+        let timer: ReturnType<typeof setInterval>;
 
         if (cooldown > 0) {
-            timer = setInterval(() => setCooldown((prev) => prev - 1), 1000);
+            timer = setInterval(() => {
+                setCooldown((prev) => prev - 1);
+            }, 1000);
         }
-        return () => clearInterval(timer);
+        return () => {
+            if (timer) {
+                clearInterval(timer);
+            }
+        };
     }, [cooldown]);
+
+    // handle rate limit lockout timer
+    useEffect(() => {
+        let timer: ReturnType<typeof setInterval>;
+
+        if (lockoutTimer > 0) {
+            timer = setInterval(() => {
+                setLockoutTimer((prev) => {
+                    if (prev <= 1) {
+                        setFailedAttempts(0);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+        return () => {
+            if (timer) {
+                clearInterval(timer);
+            }
+        }
+    }, [lockoutTimer]);
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs < 10 ? '0' : ""}${secs}`;
+    }
 
     const handleVerify = async (codeToSubmit: string) => {
         Keyboard.dismiss();
 
+        if (lockoutTimer > 0) {
+            ToastAndroid.show(`Too many failed attempts. try again in ${formatTime(lockoutTimer)}`, ToastAndroid.LONG);
+            return;
+        }
+
         if (!codeToSubmit || codeToSubmit.trim().length !== 6) {
-            ToastAndroid.show("Please enter the complete 6 digit code", ToastAndroid.SHORT);
+            ToastAndroid.show("Please enter the complete 6 digit code", ToastAndroid.LONG);
             return;
         }
 
@@ -42,18 +86,38 @@ export default function VerifyEmail({ email, onSuccess }: verifyEmailProps) {
 
             ToastAndroid.show(result.message || "Email verified successfully!", ToastAndroid.SHORT);
 
+            setFailedAttempts(0);
+
             if (onSuccess) {
                 onSuccess();
             }
         } catch (err: any) {
-            ToastAndroid.show(err.message || "Verification Failed", ToastAndroid.SHORT);
+            const serverMessage = err.response?.data?.message || err.message;
+
+            if (err.response?.status === 429) {
+                setLockoutTimer(LOCKOUT_CD);
+                ToastAndroid.show(serverMessage || "Too many failed attempts. Locked for 5 minutes", ToastAndroid.LONG);
+                return;
+            }
+
+            const nextAttempts = failedAttempts + 1;
+            setFailedAttempts(nextAttempts);
+
+            if (nextAttempts >= MAX_ATTEMPTS) {
+                setLockoutTimer(LOCKOUT_CD);
+                ToastAndroid.show("Too many failed attempts. Locked for 5 minutes", ToastAndroid.LONG);
+            }
+            else {
+                const remaining = MAX_ATTEMPTS - nextAttempts;
+                ToastAndroid.show(`${err.message || "Verification Failed"} (${remaining} attempts) remaining`, ToastAndroid.LONG);
+            }
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleResendCode = async () => {
-        if (cooldown > 0 || isResending) {
+        if (cooldown > 0 || isResending || lockoutTimer > 0) {
             return;
         }
 
@@ -66,14 +130,20 @@ export default function VerifyEmail({ email, onSuccess }: verifyEmailProps) {
 
             ToastAndroid.show(result.message || "A new Code has been sent!", ToastAndroid.SHORT);
             setCooldown(RESEND_CD);
+            setFailedAttempts(0);
         } catch (err: any) {
-            ToastAndroid.show(err.message || "Failed to resend code", ToastAndroid.SHORT);
+            const serverMessage = err.response?.data?.message || err.message || "Failed to resend code";
+            ToastAndroid.show(serverMessage, ToastAndroid.LONG);
         } finally {
             setIsResending(false);
         }
     };
 
     const handleCodeChange = (text: string) => {
+        if (lockoutTimer > 0) {
+            return;
+        }
+
         const cleaned = text.replace(/[^0-9]/g, "");
         setCode(cleaned);
 
@@ -84,8 +154,8 @@ export default function VerifyEmail({ email, onSuccess }: verifyEmailProps) {
 
     return (
         <ScrollView
-            style={[styles.container, { paddingTop: insets.top + 20 }]}
-            contentContainerStyle={styles.scrollContainer}
+            style={styles.container}
+            contentContainerStyle={[styles.scrollContainer, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
         >
@@ -98,34 +168,42 @@ export default function VerifyEmail({ email, onSuccess }: verifyEmailProps) {
 
             <Text style={styles.label}>Verification Code</Text>
             <TextInput
-                style={styles.input}
+                style={[styles.input, lockoutTimer > 0 && styles.inputDisabled]}
                 value={code}
                 onChangeText={handleCodeChange}
                 keyboardType="number-pad"
                 maxLength={6}
                 placeholder="123456"
                 placeholderTextColor="#9CA3AF"
-                editable={!isSubmitting}
+                editable={!isSubmitting && lockoutTimer === 0}
             />
 
+            {lockoutTimer > 0 && (
+                <Text style={styles.lockoutWarningText}>
+                    Too many incorrect attempts. try again in {formatTime(lockoutTimer)}
+                </Text>
+            )}
+
             <Pressable
-                style={[styles.button, isSubmitting && styles.buttonDisabled]}
+                style={[styles.button, (isSubmitting || lockoutTimer > 0) && styles.buttonDisabled]}
                 onPress={() => handleVerify(code)}
-                disabled={isSubmitting}
+                disabled={isSubmitting || lockoutTimer > 0}
             >
                 {isSubmitting ? (
                     <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                    <Text style={styles.buttonText}>Verify Code</Text>
+                    <Text style={styles.buttonText}>
+                        {lockoutTimer > 0 ? `Locked (${formatTime(lockoutTimer)})` : "Verify Code"}
+                    </Text>
                 )}
             </Pressable>
 
             <Pressable
                 style={styles.resendButton}
                 onPress={handleResendCode}
-                disabled={isResending || cooldown > 0}
+                disabled={isResending || cooldown > 0 || lockoutTimer > 0}
             >
-                <Text style={[styles.resendText, (isResending || cooldown > 0) && styles.resendTextDisabled]}>
+                <Text style={[styles.resendText, (isResending || cooldown > 0 || lockoutTimer > 0) && styles.resendTextDisabled]}>
                     {isResending
                         ? "Sending..."
                         : cooldown > 0
@@ -144,7 +222,8 @@ const styles = StyleSheet.create({
         backgroundColor: "#FFFFFF"
     },
     scrollContainer: {
-        paddingHorizontal: 20
+        paddingHorizontal: 20,
+        flexGrow: 1
     },
     title: {
         fontSize: 24,
@@ -179,6 +258,18 @@ const styles = StyleSheet.create({
         fontSize: 22,
         letterSpacing: 6,
         textAlign: "center"
+    },
+    inputDisabled: {
+        backgroundColor: "#E5E7EB",
+        borderColor: "#D1D5DB",
+        color: "#9CA3AF"
+    },
+    lockoutWarningText: {
+        color: "#DC2626",
+        fontSize: 13,
+        textAlign: "center",
+        marginBottom: 12,
+        fontWeight: "500"
     },
     button: {
         backgroundColor: "#2563EB",
