@@ -5,9 +5,10 @@ const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 };
 
-// generate a random 6 digits code string
-const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-};
+// EMAIL VERIFICATION LOGIC 6/6
+// // generate a random 6 digits code string
+// const generateOTP = () => {
+//     return Math.floor(100000 + Math.random() * 900000).toString();
+// };
 
-module.exports = { generateToken, generateOTP };
+module.exports = { generateToken, /*generateOTP*/ };

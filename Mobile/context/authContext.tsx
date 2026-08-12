@@ -63,11 +63,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(data);
             await AsyncStorage.setItem('userInfo', JSON.stringify(data));
 
-            // check if user is verified
-            if (!data.isEmailVerified) {
-                router.replace('/(shared)/verifyEmail');
-                return;
-            }
+            // EMAIL VERIFICATION LOGIC 1/2
+            // // check if user is verified
+            // if (!data.isEmailVerified) {
+            //     router.replace('/(shared)/verifyEmail');
+            //     return;
+            // }
 
             if (router.canDismiss()) {
                 router.dismissAll();
@@ -156,11 +157,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // used by auth screens to auto redirect user if they are already logged in
     const checkLogin = async () => {
         if (user) {
-            // check if user is verified
-            if (!user.isEmailVerified) {
-                router.replace('/(shared)/verifyEmail');
-                return;
-            }
+            // EMAIL VERIFICATION LOGIC 2/2
+            // // check if user is verified
+            // if (!user.isEmailVerified) {
+            //     router.replace('/(shared)/verifyEmail');
+            //     return;
+            // }
 
             // clear nav history to prevent user from going back to auth screens
             if (router.canDismiss()) {

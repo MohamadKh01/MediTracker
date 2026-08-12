@@ -156,79 +156,80 @@ const changePassword = async (req, res) => {
     }
 }
 
-// Route    POST /api/auth/resendVerification      public access
-const resendVerification = async (req, res) => {
-    try {
-        const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ success: false, message: "Email is required" });
-        }
+// EMAIL VERIFICATION LOGIC 1/6
+// // Route    POST /api/auth/resendVerification      public access
+// const resendVerification = async (req, res) => {
+//     try {
+//         const { email } = req.body;
+//         if (!email) {
+//             return res.status(400).json({ success: false, message: "Email is required" });
+//         }
 
-        const cleanEmail = email.trim().toLowerCase();
-        const user = await Users.findOne({ email: cleanEmail });
+//         const cleanEmail = email.trim().toLowerCase();
+//         const user = await Users.findOne({ email: cleanEmail });
 
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found!" });
-        }
+//         if (!user) {
+//             return res.status(404).json({ success: false, message: "User not found!" });
+//         }
 
-        if (user.isEmailVerified) {
-            return res.status(400).json({ success: false, message: "Email is already verified" });
-        }
+//         if (user.isEmailVerified) {
+//             return res.status(400).json({ success: false, message: "Email is already verified" });
+//         }
 
-        const otpCode = generateOTP();
-        user.emailVerificationCode = otpCode;
-        user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+//         const otpCode = generateOTP();
+//         user.emailVerificationCode = otpCode;
+//         user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-        await user.save();
+//         await user.save();
 
-        await sendVerificationEmail(cleanEmail, otpCode);
+//         await sendVerificationEmail(cleanEmail, otpCode);
 
-        resetVerifyEmailLimit(req);
+//         resetVerifyEmailLimit(req);
 
-        return res.status(200).json({ success: true, message: "A new verification code has been sent to your email." });
-    } catch (err) {
-        console.error("Resend Verification Error: ", err);
-        return res.status(500).json({ success: false, message: "Server error" });
-    }
-};
+//         return res.status(200).json({ success: true, message: "A new verification code has been sent to your email." });
+//     } catch (err) {
+//         console.error("Resend Verification Error: ", err);
+//         return res.status(500).json({ success: false, message: "Server error" });
+//     }
+// };
 
-// Route    POST /api/auth/verifyEmail     public accesss
-const verifyEmail = async (req, res) => {
-    try {
-        const { email, code } = req.body;
-        if (!email || !code) {
-            return res.status(400).json({ success: false, message: "Email and verification code are required" });
-        }
+// // Route    POST /api/auth/verifyEmail     public accesss
+// const verifyEmail = async (req, res) => {
+//     try {
+//         const { email, code } = req.body;
+//         if (!email || !code) {
+//             return res.status(400).json({ success: false, message: "Email and verification code are required" });
+//         }
 
-        const cleanEmail = email.trim().toLowerCase();
-        const user = await Users.findOne({ email: cleanEmail });
+//         const cleanEmail = email.trim().toLowerCase();
+//         const user = await Users.findOne({ email: cleanEmail });
 
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
-        }
+//         if (!user) {
+//             return res.status(404).json({ success: false, message: "User not found" });
+//         }
 
-        if (user.isEmailVerified) {
-            return res.status(200).json({ success: true, message: "Email is already verified!" });
-        }
+//         if (user.isEmailVerified) {
+//             return res.status(200).json({ success: true, message: "Email is already verified!" });
+//         }
 
-        if (user.emailVerificationCode !== code.trim()) {
-            return res.status(400).json({ success: false, message: "Invalid verification code" });
-        }
+//         if (user.emailVerificationCode !== code.trim()) {
+//             return res.status(400).json({ success: false, message: "Invalid verification code" });
+//         }
 
-        if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
-            return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
-        }
+//         if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
+//             return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
+//         }
 
-        user.isEmailVerified = true;
-        user.emailVerificationCode = null;
-        user.emailVerificationExpires = null;
-        await user.save();
+//         user.isEmailVerified = true;
+//         user.emailVerificationCode = null;
+//         user.emailVerificationExpires = null;
+//         await user.save();
 
-        return res.status(200).json({ success: true, message: "Email verified successfully!" });
-    } catch (err) {
-        console.error("Verify email error: ", err);
-        return res.status(500).json({ success: false, message: "Server Error" });
-    }
-}
+//         return res.status(200).json({ success: true, message: "Email verified successfully!" });
+//     } catch (err) {
+//         console.error("Verify email error: ", err);
+//         return res.status(500).json({ success: false, message: "Server Error" });
+//     }
+// }
 
-module.exports = { registerUser, loginUser, changePassword, verifyEmail, resendVerification };
+module.exports = { registerUser, loginUser, changePassword, /*verifyEmail, resendVerification*/ };
