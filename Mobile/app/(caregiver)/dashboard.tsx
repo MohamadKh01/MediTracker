@@ -42,10 +42,7 @@ interface Medication {
         specificDays?: ('sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday')[];
         intervalDays?: number;
     };
-    schedule: {
-        time: string;
-        reminderId?: string;
-    }[];
+    schedule: string[];
     startDate: Date;
     endDate?: Date;
     inventory: {
@@ -168,11 +165,15 @@ export default function CaregiverDashboard() {
 
     // generate marked dates for the calendar
     const markedDates = useMemo(() => {
-        const marks: any = {};
+        const marks: Record<string, any> = {};
 
         // mark selected date as solid blue circle
         const selectedStr = getLocalDateString(selectedDate);
         marks[selectedStr] = { selected: true, selectedColor: "#2563EB" };
+
+        if (!medications?.length) {
+            return marks;
+        }
 
         // add dots for dates with medications
         medications?.forEach(med => {
@@ -271,10 +272,10 @@ export default function CaregiverDashboard() {
                 } as DoseCard];
             }
 
-            return med.schedule.map(slot => ({
-                doseKey: `${med._id}_${slot.time}`,
+            return med.schedule.map(timeString => ({
+                doseKey: `${med._id}_${timeString}`,
                 medication: med,
-                scheduledTime: slot.time,
+                scheduledTime: timeString,
                 isPRN: false,
             }));
         });

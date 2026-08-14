@@ -16,10 +16,7 @@ interface Medication {
         specificDays?: ('sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday')[];
         intervalDays?: number;
     };
-    schedule: {
-        time: string;
-        reminderId?: string;
-    }[];
+    schedule: string[];
     startDate: Date;
     endDate?: Date;
     inventory: {
@@ -96,12 +93,12 @@ export async function syncTodayReminders(medications: Medication[]): Promise<voi
                 continue;
             }
 
-            for (const slot of med.schedule) {
-                if (!slot.time) {
+            for (const timeString of med.schedule) {
+                if (typeof timeString !== 'string') {
                     continue;
                 }
 
-                const [hoursStr, minutesStr] = slot.time.split(':');
+                const [hoursStr, minutesStr] = timeString.split(':');
                 const hours = parseInt(hoursStr, 10);
                 const mins = parseInt(minutesStr, 10);
 
@@ -117,7 +114,7 @@ export async function syncTodayReminders(medications: Medication[]): Promise<voi
                             data: {
                                 type: 'PRIMARY_REMINDER',
                                 medicationId: med._id,
-                                scheduledTime: slot.time
+                                scheduledTime: timeString
                             },
                             sound: 'default',
                         },

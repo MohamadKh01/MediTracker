@@ -1,6 +1,6 @@
 const Users = require('../models/Users');
-const generateToken = require('../utils/generateToken');
 
+const { generateToken } = require('../utils/generateToken');
 const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
 const { calculateAge } = require('../utils/helperFunctions');
 

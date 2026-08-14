@@ -1,10 +1,12 @@
 const Users = require('../models/Users');
 
-const { generateToken, generateOTP } = require('../utils/generateToken');
 const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService');
-const { sendVerificationEmail } = require('../utils/emailService');
 const { calculateAge } = require('../utils/helperFunctions');
-const { resetVerifyEmailLimit } = require('../middleware/rateLimiter');
+
+// EMAIL VERIFICATION LOGIC
+const { generateToken/*, generateOTP*/ } = require('../utils/generateToken');
+// const { sendVerificationEmail } = require('../utils/emailService');
+// const { resetVerifyEmailLimit } = require('../middleware/rateLimiter');
 
 // Route    POST /api/auth/register     public access
 const registerUser = async (req, res) => {
@@ -37,9 +39,10 @@ const registerUser = async (req, res) => {
             return res.status(400).json({ success: false, message: "Email registered with another account" });
         }
 
-        // generate 6 digits OTP and set 15 min expiration
-        const otpCode = generateOTP();
-        const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+        // EMAIL VERIFICATION LOGIC
+        // // generate 6 digits OTP and set 15 min expiration
+        // const otpCode = generateOTP();
+        // const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
         // encrypt profile data payload
         const profilePayload = {
@@ -58,12 +61,13 @@ const registerUser = async (req, res) => {
             password,
             role,
             expoPushToken: req.body.expoPushToken || null,
-            emailVerificationCode: otpCode,
-            emailVerificationExpires: otpExpires,
+            // emailVerificationCode: otpCode,
+            // emailVerificationExpires: otpExpires,
             ...encryptedEnvelope
         });
 
-        await sendVerificationEmail(cleanEmail, otpCode);
+        // EMAIL VERIFICATION LOGIC
+        // await sendVerificationEmail(cleanEmail, otpCode);
 
         return res.status(201).json({
             success: true,

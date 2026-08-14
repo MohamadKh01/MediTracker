@@ -20,10 +20,7 @@ interface Medication {
         specificDays?: ('sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday')[];
         intervalDays?: number;
     };
-    schedule: {
-        time: string;
-        reminderId?: string;
-    }[];
+    schedule: string[];
     startDate: Date;
     endDate?: Date;
     inventory: {
@@ -57,7 +54,7 @@ export default function AddMedication() {
     const [frequency, setFrequency] = useState<Medication['frequency']['type']>('daily');
     const [specificDays, setSpecificDays] = useState<Medication['frequency']['specificDays']>([]);
     const [intervalDays, setIntervalDays] = useState(1);
-    const [schedule, setSchedule] = useState<Medication['schedule']>([]);
+    const [schedule, setSchedule] = useState<string[]>([]);
     const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [trackingEnabled, setTrackingEnabled] = useState(false);
@@ -97,7 +94,7 @@ export default function AddMedication() {
             setIsActive(editMed.isActive);
             setNotes(editMed.notes || "");
 
-            if (editMed.trackingEnabled || editMed.doctor?.name || editMed.notes) {
+            if (editMed.inventory.trackingEnabled || editMed.doctor?.name || editMed.notes) {
                 setIsAdvancedVisible(true);
             }
         }
@@ -134,6 +131,7 @@ export default function AddMedication() {
 
             const parsedCurrentQuantity = currentQuantity ? Number(currentQuantity) : 0;
             const parsedRefillThreshold = refillThreshold ? Number(refillThreshold) : 0;
+
             const payload: any = {
                 name: name.trim(),
                 type,
@@ -211,12 +209,12 @@ export default function AddMedication() {
             const formattedTime = `${hours}:${minutes}`;
 
             setSchedule(prev => {
-                if (prev.some(item => item.time === formattedTime)) {
+                if (prev.includes(formattedTime)) {
                     return prev;
                 }
 
-                const updated = [...prev, { time: formattedTime }];
-                return updated.sort((a, b) => a.time.localeCompare(b.time));
+                const updated = [...prev, formattedTime];
+                return updated.sort((a, b) => a.localeCompare(b));
             });
         }
     }
@@ -362,7 +360,7 @@ export default function AddMedication() {
                                         if (isSelected) {
                                             setSpecificDays(prev => prev?.filter(d => d !== day));
                                         } else {
-                                            setSpecificDays(prev => [...(prev ?? []), day])
+                                            setSpecificDays(prev => [...(prev ?? []), day]);
                                         }
                                     }}
                                 >
@@ -390,13 +388,13 @@ export default function AddMedication() {
 
             <Text style={styles.label}>Dose Reminder Times *</Text>
             <View style={styles.timesContainer}>
-                {schedule.map((item, index) => (
+                {schedule.map((timeString, index) => (
                     <TouchableOpacity
                         key={index}
                         style={styles.timeChip}
                         onPress={() => setSchedule(prev => prev.filter((_, i) => i !== index))}
                     >
-                        <Text style={styles.timeChipText}>{item.time} X</Text>
+                        <Text style={styles.timeChipText}>{timeString} X</Text>
                     </TouchableOpacity>
                 ))}
                 <TouchableOpacity style={styles.addTimeButton} onPress={() => setIsTimePickerVisible(true)}>
