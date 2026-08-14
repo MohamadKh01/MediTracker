@@ -24,7 +24,6 @@ const createMedication = async (req, res) => {
             type,
             dosage,
             frequency,
-            schedule: schedule || [],
             startDate,
             endDate,
             inventory,
@@ -38,6 +37,7 @@ const createMedication = async (req, res) => {
         const medication = await Medications.create({
             user: req.user._id,
             isActive: true,
+            schedule: schedule || [],
             ...encryptedEnvelope
         });
 
@@ -45,6 +45,7 @@ const createMedication = async (req, res) => {
             _id: medication._id,
             user: medication.user,
             isActive: medication.isActive,
+            schedule: medication.schedule || [],
             ...decryptDocumentPayload(medication),
             createdAt: medication.createdAt,
             updatedAt: medication.updatedAt,
@@ -68,6 +69,7 @@ const getMyMedications = async (req, res) => {
                 _id: medObj._id,
                 user: medObj.user,
                 isActive: medObj.isActive,
+                schedule: medObj.schedule || [],
                 ...decryptDocumentPayload(medObj),
                 createdAt: medObj.createdAt,
                 updatedAt: medObj.updatedAt
@@ -103,7 +105,6 @@ const updateMedication = async (req, res) => {
             type: req.body.type !== undefined ? req.body.type : currentPayload.type,
             dosage: req.body.dosage !== undefined ? req.body.dosage : currentPayload.dosage,
             frequency: req.body.frequency !== undefined ? req.body.frequency : currentPayload.frequency,
-            schedule: req.body.schedule !== undefined ? req.body.schedule : currentPayload.schedule,
             startDate: req.body.startDate !== undefined ? new Date(req.body.startDate) : currentPayload.startDate,
             endDate: req.body.endDate !== undefined ? new Date(req.body.endDate) : currentPayload.endDate,
             inventory: req.body.inventory !== undefined ? req.body.inventory : currentPayload.inventory,
@@ -119,12 +120,17 @@ const updateMedication = async (req, res) => {
             medication.isActive = req.body.isActive;
         }
 
+        if (req.body.schedule !== undefined) {
+            medication.schedule = req.body.schedule;
+        }
+
         await medication.save();
 
         const decryptedData = {
             _id: medication._id,
             user: medication.user,
             isActive: medication.isActive,
+            schedule: medication.schedule,
             ...decryptDocumentPayload(medication),
             createdAt: medication.createdAt,
             updatedAt: medication.updatedAt

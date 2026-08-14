@@ -11,6 +11,10 @@ const MedicationSchema = new mongoose.Schema({
         type: Boolean,
         default: true,
     },
+    schedule: [{
+        type: String,
+        trim: true,
+    }],
     encryptedPayload: {
         type: String,
         required: [true, "Encrypted payload is required"],

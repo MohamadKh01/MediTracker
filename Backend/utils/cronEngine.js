@@ -6,11 +6,10 @@ const Links = require('../models/CaregiverLink');
 const Users = require('../models/Users');
 
 const { sendPushNotification } = require('./notifications');
+const { encryptDocumentPayload, decryptDocumentPayload } = require('../utils/encryptionService')
 
 const getSystemTimeMetrics = () => {
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
 
     const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
     const pastHours = String(thirtyMinsAgo.getHours()).padStart(2, '0');
@@ -21,7 +20,6 @@ const getSystemTimeMetrics = () => {
     const day = String(now.getDate()).padStart(2, '0');
 
     return {
-        nowTime: `${hours}:${minutes}`,
         pastTime: `${pastHours}:${pastMinutes}`,
         todayStr: `${year}-${month}-${day}`,
         weekdayName: now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
@@ -32,52 +30,32 @@ const startNotificationCronEngine = () => {
     // cron wakes up once every minute (* * * * *)
     cron.schedule('* * * * *', async () => {
         try {
-            const { nowTime, pastTime, todayStr, weekdayName } = getSystemTimeMetrics();
+            const { pastTime, todayStr, weekdayName } = getSystemTimeMetrics();
             const todayDateObj = new Date(todayStr);
-
-            console.log(`[CRON RUNNER] server time: ${todayStr} | checking for meds at: ${nowTime}`);
-
-            // remind patients when dose is due
-            const dueMedications = await Medications.find({
-                isActive: true,
-                startDate: { $lte: todayDateObj },
-                $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gte: todayDateObj } }],
-                'schedule.time': nowTime
-            }).populate('user');
-
-            for (let med of dueMedications) {
-                let isScheduledToday = false;
-
-                if (med.frequency.type === "daily" || med.frequency.type === 'as needed (PRN)') {
-                    isScheduledToday = true;
-                } else if (med.frequency.type === "specific days" && med.frequency.specificDays?.includes(weekdayName)) {
-                    isScheduledToday = true;
-                } else if (med.frequency.type === "interval" && med.frequency.intervalDays) {
-                    const diffTime = Math.abs(todayDateObj.getTime() - new Date(med.startDate).getTime());
-                    const diffDays = Math.round(diffTime / (24 * 60 * 60 * 1000));
-                    if (diffDays % med.frequency.intervalDays === 0) {
-                        isScheduledToday = true;
-                    }
-                }
-
-                if (isScheduledToday && med.user?.expoPushToken) {
-                    await sendPushNotification(
-                        med.user.expoPushToken,
-                        "⏰ Medication Reminder",
-                        `It's time to take your medication: ${med.name} (${med.dosage.value} ${med.dosage.unit}).`
-                    );
-                }
-            }
 
             // auto detect and log missed doses (30 min later)
             const pastMedications = await Medications.find({
                 isActive: true,
-                startDate: { $lte: todayDateObj },
-                $or: [{ endDate: { $exists: false } }, { endDate: null }, { endDate: { $gte: todayDateObj } }],
-                'schedule.time': pastTime
+                schedule: pastTime
             }).populate('user');
 
-            for (let med of pastMedications) {
+            for (let rawMed of pastMedications) {
+                const med = decryptDocumentPayload(rawMed);
+
+                const start = new Date(med.startDate);
+                start.setHours(0, 0, 0, 0);
+                if (todayDateObj < start) {
+                    continue;
+                }
+
+                if (med.endDate) {
+                    const end = new Date(med.endDate);
+                    end.setHours(0, 0, 0, 0);
+                    if (todayDateObj > end) {
+                        continue;
+                    }
+                }
+
                 let wasScheduledPastWindow = false;
 
                 if (med.frequency.type === "daily") {
@@ -102,13 +80,19 @@ const startNotificationCronEngine = () => {
 
                     // if not logged, after 30 min, log it as missed
                     if (!existingLog) {
+                        const payloadToEncrypt = {
+                            status: 'missed',
+                            notes: "Auto detected missed dose"
+                        }
+
+                        const encryptedEnvelope = encryptDocumentPayload(payloadToEncrypt);
+
                         await AdherenceLog.create({
                             user: med.user._id,
                             medication: med._id,
                             scheduledTime: pastTime,
                             logDate: todayDateObj,
-                            status: 'missed',
-                            notes: "Auto detected missed dose"
+                            ...encryptedEnvelope,
                         });
 
                         // send notification to the patient
@@ -130,7 +114,7 @@ const startNotificationCronEngine = () => {
                             });
 
                             if (caregivers.length > 0) {
-                                const patientName = med.user.name || med.user.username;
+                                const patientName = med.user.username;
                                 await Promise.all(
                                     caregivers.map(caregiver =>
                                         sendPushNotification(

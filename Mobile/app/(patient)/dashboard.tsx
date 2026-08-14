@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/authContext";
 import { BASE_URL } from "../../constants/api";
 import { getLocalDateString } from "../../utils/dates";
+import { syncTodayReminders, cancelMissedDoseNotification } from "../../utils/reminderManager";
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
@@ -92,6 +93,7 @@ export default function PatientDashboard() {
 
             if (medResult.success) {
                 setMedications(medResult.data);
+                syncTodayReminders(medResult.data);
             }
 
             if (logResult.success) {
@@ -265,6 +267,7 @@ export default function PatientDashboard() {
 
                             if (res.ok) {
                                 setMedications((prev) => prev.filter((med) => med._id !== id));
+                                syncTodayReminders(medications);
                                 ToastAndroid.show("Medication deleted", ToastAndroid.SHORT);
                             } else {
                                 const result = await res.json();
@@ -301,6 +304,11 @@ export default function PatientDashboard() {
 
             if (result.success) {
                 ToastAndroid.show(`Medication marked as ${status}`, ToastAndroid.SHORT);
+
+                if (getLocalDateString(selectedDate) === getLocalDateString(new Date())) {
+                    await cancelMissedDoseNotification(medId, scheduledTime);
+                }
+
                 fetchMedications();
             } else {
                 ToastAndroid.show(result.message || "Could not log action", ToastAndroid.SHORT);
