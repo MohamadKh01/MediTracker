@@ -24,9 +24,12 @@ export async function requestAndroidNotificationPermissions(): Promise<boolean> 
     // build a high importance notification channel
     await Notifications.setNotificationChannelAsync('default', {
         name: 'Default Medical Alerts',
-        importance: Notifications.AndroidImportance.MAX,
+        importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 500, 250, 500],
         lightColor: "#2563EB",
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
     });
 
     // check existing permissions

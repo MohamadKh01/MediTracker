@@ -102,6 +102,10 @@ export async function syncTodayReminders(medications: Medication[]): Promise<voi
                 const hours = parseInt(hoursStr, 10);
                 const mins = parseInt(minutesStr, 10);
 
+                if (isNaN(hours) || isNaN(mins)) {
+                    continue;
+                }
+
                 const triggerDate = new Date();
                 triggerDate.setHours(hours, mins, 0, 0);
 
@@ -116,7 +120,8 @@ export async function syncTodayReminders(medications: Medication[]): Promise<voi
                                 medicationId: med._id,
                                 scheduledTime: timeString
                             },
-                            sound: 'default',
+                            sound: true,
+                            priority: Notifications.AndroidNotificationPriority.HIGH,
                         },
                         trigger: {
                             type: Notifications.SchedulableTriggerInputTypes.DATE,
